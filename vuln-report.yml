@@ -1,0 +1,52 @@
+name: Weekly Vulnerability Report
+
+on:
+  schedule:
+    # Every Monday at 07:00 UTC
+    - cron: "0 7 * * 1"
+  workflow_dispatch:   # Allow manual trigger from GitHub UI
+
+permissions:
+  contents: write      # Needed to push the report to gh-pages
+  pages: write
+  id-token: write
+
+jobs:
+  build-report:
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Set up Python ─────────────────────────────────────────────────────
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # ── 3. Fetch vulnerabilities ──────────────────────────────────────────────
+      - name: Fetch vulnerabilities
+        run: python scripts/fetch_vulns.py
+
+      # ── 4. Generate HTML report ───────────────────────────────────────────────
+      - name: Generate HTML report
+        run: python scripts/generate_report.py
+
+      # ── 5. Commit report to gh-pages ──────────────────────────────────────────
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./reports
+          publish_branch: gh-pages
+          commit_message: "chore: weekly vuln report ${{ github.run_id }}"
+
+      # ── 6. (Optional) Upload as artifact for direct download ──────────────────
+      - name: Upload report artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: vuln-report-${{ github.run_id }}
+          path: reports/
+          retention-days: 30
