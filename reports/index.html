@@ -1,0 +1,2270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Weekly Vulnerability Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:       #0d0f14;
+    --surface:  #13161e;
+    --surface2: #1a1e28;
+    --border:   #252a38;
+    --text:     #e2e6f0;
+    --muted:    #6b7491;
+    --accent:   #4f8ef7;
+    --radius:   10px;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 60px;
+  }
+
+  /* ─ Header ─ */
+  .header {
+    background: linear-gradient(135deg, #0d1526 0%, #0d0f14 60%);
+    border-bottom: 1px solid var(--border);
+    padding: 36px 48px 28px;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(ellipse 60% 80% at 80% 50%, rgba(79,142,247,.07) 0%, transparent 70%);
+  }
+  .header-top {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 {
+    font-size: 2rem;
+    font-weight: 800;
+    letter-spacing: -0.5px;
+    line-height: 1.1;
+  }
+  .header h1 span { color: var(--accent); }
+  .header-meta {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .75rem;
+    color: var(--muted);
+    line-height: 1.8;
+    text-align: right;
+  }
+  .header-sub {
+    margin-top: 6px;
+    color: var(--muted);
+    font-size: .9rem;
+    font-weight: 400;
+  }
+
+  /* ─ Stats ─ */
+  .stats-section {
+    padding: 28px 48px 0;
+  }
+  .stats-row {
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .stat-box, .cat-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px 22px;
+    cursor: pointer;
+    transition: border-color .18s, transform .18s;
+    min-width: 90px;
+    text-align: center;
+  }
+  .stat-box:hover, .cat-box:hover {
+    border-color: var(--accent);
+    transform: translateY(-2px);
+  }
+  .stat-box.active, .cat-box.active {
+    border-color: var(--accent);
+    background: rgba(79,142,247,.08);
+  }
+  .stat-num { font-size: 1.8rem; font-weight: 800; line-height: 1; }
+  .stat-label { font-size: .7rem; color: var(--muted); margin-top: 4px; letter-spacing: .08em; text-transform: uppercase; }
+  .cat-icon { font-size: 1.4rem; }
+  .cat-num { font-size: 1.4rem; font-weight: 700; margin-top: 4px; }
+  .cat-label { font-size: .7rem; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .08em; }
+
+  /* ─ Toolbar ─ */
+  .toolbar {
+    padding: 20px 48px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    border-bottom: 1px solid var(--border);
+  }
+  .total-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .8rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+  .filter-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    border-radius: 6px;
+    padding: 6px 14px;
+    font-family: 'Syne', sans-serif;
+    font-size: .8rem;
+    cursor: pointer;
+    transition: background .15s, border-color .15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); }
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #fff;
+  }
+  input[type=search] {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .8rem;
+    padding: 6px 14px;
+    width: 220px;
+    outline: none;
+  }
+  input[type=search]:focus { border-color: var(--accent); }
+
+  /* ─ Cards ─ */
+  .cards-wrap { padding: 24px 48px; display: flex; flex-direction: column; gap: 14px; }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    display: flex;
+    overflow: hidden;
+    transition: border-color .18s, transform .18s;
+    animation: fadeIn .3s ease both;
+  }
+  .card:hover { border-color: rgba(79,142,247,.4); transform: translateX(3px); }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(8px) } to { opacity:1; transform:none } }
+  .card-stripe { width: 4px; flex-shrink: 0; }
+  .card-body { padding: 16px 20px; flex: 1; min-width: 0; }
+  .card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+  }
+  .card-left { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  .card-meta { display: flex; gap: 8px; font-size: .72rem; color: var(--muted); font-family: 'JetBrains Mono', monospace; }
+  .badge {
+    font-size: .68rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 4px;
+    color: #fff;
+    letter-spacing: .06em;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .pill {
+    font-size: .7rem;
+    padding: 2px 8px;
+    border-radius: 20px;
+    font-weight: 600;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--muted);
+  }
+  .pill-linux     { border-color: #f7c94f44; color: #f7c94f; }
+  .pill-kubernetes { border-color: #4f8ef744; color: #4f8ef7; }
+  .pill-openshift { border-color: #ff6b3544; color: #ff6b35; }
+  .card-title {
+    font-size: .92rem;
+    font-weight: 700;
+    margin-bottom: 6px;
+    line-height: 1.4;
+  }
+  .card-title a { color: var(--text); text-decoration: none; }
+  .card-title a:hover { color: var(--accent); }
+  .card-desc {
+    font-size: .8rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 10px;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .card-footer { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+  .score-wrap {
+    display: flex; align-items: center; gap: 8px;
+    flex: 0 0 160px;
+  }
+  .score-bar {
+    height: 4px;
+    border-radius: 2px;
+    transition: width .4s ease;
+  }
+  .score-num { font-family: 'JetBrains Mono', monospace; font-size: .78rem; color: var(--muted); white-space: nowrap; }
+  .score-na { font-family: 'JetBrains Mono', monospace; font-size: .78rem; color: var(--border); }
+  .refs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .ref-link {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .7rem;
+    color: var(--accent);
+    text-decoration: none;
+    border: 1px solid rgba(79,142,247,.25);
+    border-radius: 4px;
+    padding: 1px 6px;
+  }
+  .ref-link:hover { background: rgba(79,142,247,.1); }
+
+  /* ─ Empty state ─ */
+  .empty { text-align: center; padding: 60px; color: var(--muted); font-size: .9rem; }
+
+  /* ─ Footer ─ */
+  .footer {
+    text-align: center;
+    padding: 20px;
+    font-size: .75rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+  }
+
+  @media(max-width:640px) {
+    .header, .stats-section, .toolbar, .cards-wrap { padding-left: 20px; padding-right: 20px; }
+    .header h1 { font-size: 1.4rem; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-top">
+    <div>
+      <h1>Weekly <span>Vulnerability</span> Report</h1>
+      <div class="header-sub">Linux · Kubernetes · OpenShift — last 7 days</div>
+    </div>
+    <div class="header-meta">
+      Generated: 2026-05-11 13:18:45 UTC<br/>
+      Sources: NVD, Kubernetes CVE Feed, Red Hat RHSA
+    </div>
+  </div>
+</div>
+
+<div class="stats-section">
+  <div class="stats-row">
+        <div class="stat-box" data-filter-sev="CRITICAL">
+          <div class="stat-num" style="color:#ff3b3b">4</div>
+          <div class="stat-label">CRITICAL</div>
+        </div>
+        <div class="stat-box" data-filter-sev="HIGH">
+          <div class="stat-num" style="color:#ff8c00">15</div>
+          <div class="stat-label">HIGH</div>
+        </div>
+        <div class="stat-box" data-filter-sev="MEDIUM">
+          <div class="stat-num" style="color:#f5c518">0</div>
+          <div class="stat-label">MEDIUM</div>
+        </div>
+        <div class="stat-box" data-filter-sev="LOW">
+          <div class="stat-num" style="color:#4caf7d">0</div>
+          <div class="stat-label">LOW</div>
+        </div>
+        <div class="stat-box" data-filter-sev="UNKNOWN">
+          <div class="stat-num" style="color:#888888">37</div>
+          <div class="stat-label">UNKNOWN</div>
+        </div></div>
+  <div class="stats-row">
+        <div class="cat-box" data-filter-cat="linux">
+          <div class="cat-icon">🐧</div>
+          <div class="cat-num">50</div>
+          <div class="cat-label">Linux</div>
+        </div>
+        <div class="cat-box" data-filter-cat="kubernetes">
+          <div class="cat-icon">☸️</div>
+          <div class="cat-num">6</div>
+          <div class="cat-label">Kubernetes</div>
+        </div>
+        <div class="cat-box" data-filter-cat="openshift">
+          <div class="cat-icon">🔴</div>
+          <div class="cat-num">0</div>
+          <div class="cat-label">Openshift</div>
+        </div></div>
+</div>
+
+<div class="toolbar">
+  <button class="filter-btn active" data-sev="ALL">All Severities</button>
+  <button class="filter-btn" data-sev="CRITICAL">Critical</button>
+  <button class="filter-btn" data-sev="HIGH">High</button>
+  <button class="filter-btn" data-sev="MEDIUM">Medium</button>
+  <input type="search" id="search" placeholder="Search CVE, keyword…"/>
+  <span class="total-tag" id="count-label">56 entries</span>
+</div>
+
+<div class="cards-wrap" id="cards">
+
+    <div class="card" data-severity="CRITICAL" data-cats="linux">
+      <div class="card-stripe" style="background:#ff3b3b"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff3b3b">CRITICAL</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43067" target="_blank">CVE-2026-43067 — In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: handle wraparound when searching for blocks f…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: handle wraparound when searching for blocks for indirect mapped blocks
+
+Commit 4865c768b563 ("ext4: always allocate blocks only from groups
+inode can use") restricts what blocks will be allocated for indirect
+block based file…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:98%;background:#ff3b3b"></div>
+        <span class="score-num">9.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/12624c5b724a81e14e532972b40d863b0de3b7d1" target="_blank" class="ref-link">12624c5b724a81e14e532972b40d863b0de3b7d1</a> <a href="https://git.kernel.org/stable/c/2a368ccddfc492a0aa951e2caef2985f20e96503" target="_blank" class="ref-link">2a368ccddfc492a0aa951e2caef2985f20e96503</a> <a href="https://git.kernel.org/stable/c/4bec4a498ce86314d470ae6144120461f2138c29" target="_blank" class="ref-link">4bec4a498ce86314d470ae6144120461f2138c29</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="CRITICAL" data-cats="linux">
+      <div class="card-stripe" style="background:#ff3b3b"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff3b3b">CRITICAL</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43071" target="_blank">CVE-2026-43071 — In the Linux kernel, the following vulnerability has been resolved:
+
+dcache: Limit the minimal number of bucket to two
+
+…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+dcache: Limit the minimal number of bucket to two
+
+There is an OOB read problem on dentry_hashtable when user sets
+'dhash_entries=1':
+  BUG: unable to handle page fault for address: ffff888b30b774b0
+  #PF: supervisor read access in…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:91%;background:#ff3b3b"></div>
+        <span class="score-num">9.1</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/277cedabb0ab86baae83fa58218be13c6d3e5526" target="_blank" class="ref-link">277cedabb0ab86baae83fa58218be13c6d3e5526</a> <a href="https://git.kernel.org/stable/c/426ef05e82ee52c8d0e95fc0808b7383d8352d73" target="_blank" class="ref-link">426ef05e82ee52c8d0e95fc0808b7383d8352d73</a> <a href="https://git.kernel.org/stable/c/5718df131ab78897a9dd1f2e71c3ba732d4392af" target="_blank" class="ref-link">5718df131ab78897a9dd1f2e71c3ba732d4392af</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="CRITICAL" data-cats="linux">
+      <div class="card-stripe" style="background:#ff3b3b"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff3b3b">CRITICAL</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43083" target="_blank">CVE-2026-43083 — In the Linux kernel, the following vulnerability has been resolved:
+
+net: ioam6: fix OOB and missing lock
+
+When trace->t…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+net: ioam6: fix OOB and missing lock
+
+When trace->type.bit6 is set:
+
+    if (trace->type.bit6) {
+        ...
+        queue = skb_get_tx_queue(dev, skb);
+        qdisc = rcu_dereference(queue->qdisc);
+
+This code can lead to an out-o…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:91%;background:#ff3b3b"></div>
+        <span class="score-num">9.1</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/6d1d9ed9b409e0662241e3d245d574a18f643494" target="_blank" class="ref-link">6d1d9ed9b409e0662241e3d245d574a18f643494</a> <a href="https://git.kernel.org/stable/c/95a1334748c95dd15546056280ade0c4b8dd7b78" target="_blank" class="ref-link">95a1334748c95dd15546056280ade0c4b8dd7b78</a> <a href="https://git.kernel.org/stable/c/b30b1675aa2bcf0491fd3830b051df4e08a7c8ca" target="_blank" class="ref-link">b30b1675aa2bcf0491fd3830b051df4e08a7c8ca</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="CRITICAL" data-cats="kubernetes">
+      <div class="card-stripe" style="background:#ff3b3b"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff3b3b">CRITICAL</span>
+            <span class="pill pill-kubernetes">☸️ Kubernetes</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-07</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-42880" target="_blank">CVE-2026-42880 — Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. From versions 3.2.0 to before 3.2.11 and 3.3.0…</a>
+        </div>
+        <div class="card-desc">Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. From versions 3.2.0 to before 3.2.11 and 3.3.0 to before 3.3.9, there is a missing authorization and data-masking gap in Argo CD's ServerSideDiff endpoint that allows an attacker with read-only access to extract plaintext Kube…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:96%;background:#ff3b3b"></div>
+        <span class="score-num">9.6</span>
+      </div>
+          <div class="refs"><a href="https://github.com/argoproj/argo-cd/security/advisories/GHSA-3v3m-wc6v-x4x3" target="_blank" class="ref-link">GHSA-3v3m-wc6v-x4x3</a> <a href="https://github.com/argoproj/argo-cd/security/advisories/GHSA-3v3m-wc6v-x4x3" target="_blank" class="ref-link">GHSA-3v3m-wc6v-x4x3</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43060" target="_blank">CVE-2026-43060 — In the Linux kernel, the following vulnerability has been resolved:
+
+netfilter: nft_ct: drop pending enqueued packets on…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+netfilter: nft_ct: drop pending enqueued packets on removal
+
+Packets sitting in nfqueue might hold a reference to:
+
+- templates that specify the conntrack zone, because a percpu area is
+  used and module removal is possible.
+- conn…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/36eae0956f659e48d5366d9b083d9417f3263ddc" target="_blank" class="ref-link">36eae0956f659e48d5366d9b083d9417f3263ddc</a> <a href="https://git.kernel.org/stable/c/3da0b946835f33bf36b459ead764c61a761e689b" target="_blank" class="ref-link">3da0b946835f33bf36b459ead764c61a761e689b</a> <a href="https://git.kernel.org/stable/c/6802ff8beceb9c4254318e81c1395720438f2cc2" target="_blank" class="ref-link">6802ff8beceb9c4254318e81c1395720438f2cc2</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43062" target="_blank">CVE-2026-43062 — In the Linux kernel, the following vulnerability has been resolved:
+
+Bluetooth: L2CAP: Fix type confusion in l2cap_ecred…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+Bluetooth: L2CAP: Fix type confusion in l2cap_ecred_reconf_rsp()
+
+l2cap_ecred_reconf_rsp() casts the incoming data to struct
+l2cap_ecred_conn_rsp (the ECRED *connection* response, 8 bytes with
+result at offset 6) instead of struct …</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:71%;background:#ff8c00"></div>
+        <span class="score-num">7.1</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/111f74547eee8cfedfb854284e80f35c8a491186" target="_blank" class="ref-link">111f74547eee8cfedfb854284e80f35c8a491186</a> <a href="https://git.kernel.org/stable/c/15145675690cab2de1056e7ed68e59cbd0452529" target="_blank" class="ref-link">15145675690cab2de1056e7ed68e59cbd0452529</a> <a href="https://git.kernel.org/stable/c/21d3ba696918d6373233aac0b9d51fcabdedddc0" target="_blank" class="ref-link">21d3ba696918d6373233aac0b9d51fcabdedddc0</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43063" target="_blank">CVE-2026-43063 — In the Linux kernel, the following vulnerability has been resolved:
+
+xfs: don't irele after failing to iget in xfs_attri…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xfs: don't irele after failing to iget in xfs_attri_recover_work
+
+xlog_recovery_iget* never set @ip to a valid pointer if they return
+an error, so this irele will walk off a dangling pointer.  Fix that.</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/40082d08b638485cbaa543dc8087a3d1844d6f08" target="_blank" class="ref-link">40082d08b638485cbaa543dc8087a3d1844d6f08</a> <a href="https://git.kernel.org/stable/c/70685c291ef82269180758130394ecdc4496b52c" target="_blank" class="ref-link">70685c291ef82269180758130394ecdc4496b52c</a> <a href="https://git.kernel.org/stable/c/a1a5df1038f0b3c560d204270373621a4e622808" target="_blank" class="ref-link">a1a5df1038f0b3c560d204270373621a4e622808</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43070" target="_blank">CVE-2026-43070 — In the Linux kernel, the following vulnerability has been resolved:
+
+bpf: Reset register ID for BPF_END value tracking
+
+…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+bpf: Reset register ID for BPF_END value tracking
+
+When a register undergoes a BPF_END (byte swap) operation, its scalar
+value is mutated in-place. If this register previously shared a scalar ID
+with another register (e.g., after a…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0d15c3611a2cc5d08993545d4032055ae10ae2c1" target="_blank" class="ref-link">0d15c3611a2cc5d08993545d4032055ae10ae2c1</a> <a href="https://git.kernel.org/stable/c/a17443af874229408ce6b78e2c8a2b5adeb4b7d8" target="_blank" class="ref-link">a17443af874229408ce6b78e2c8a2b5adeb4b7d8</a> <a href="https://git.kernel.org/stable/c/a3125bc01884431d30d731461634c8295b6f0529" target="_blank" class="ref-link">a3125bc01884431d30d731461634c8295b6f0529</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43074" target="_blank">CVE-2026-43074 — In the Linux kernel, the following vulnerability has been resolved:
+
+eventpoll: defer struct eventpoll free to RCU grace…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+eventpoll: defer struct eventpoll free to RCU grace period
+
+In certain situations, ep_free() in eventpoll.c will kfree the epi->ep
+eventpoll struct while it still being used by another concurrent thread.
+Defer the kfree() to an RCU…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/07712db80857d5d09ae08f3df85a708ecfc3b61f" target="_blank" class="ref-link">07712db80857d5d09ae08f3df85a708ecfc3b61f</a> <a href="https://git.kernel.org/stable/c/5b1173b165421561db29f30afc7e97d940a398a9" target="_blank" class="ref-link">5b1173b165421561db29f30afc7e97d940a398a9</a> <a href="https://git.kernel.org/stable/c/7e8083f5eeedab0f460063b9c2c14c9a4e71a427" target="_blank" class="ref-link">7e8083f5eeedab0f460063b9c2c14c9a4e71a427</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43075" target="_blank">CVE-2026-43075 — In the Linux kernel, the following vulnerability has been resolved:
+
+ocfs2: fix out-of-bounds write in ocfs2_write_end_i…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ocfs2: fix out-of-bounds write in ocfs2_write_end_inline
+
+KASAN reports a use-after-free write of 4086 bytes in
+ocfs2_write_end_inline, called from ocfs2_write_end_nolock during a
+copy_file_range splice fallback on a corrupted ocfs…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0c1af902223b6fcedb60904ca0b551254686c7b9" target="_blank" class="ref-link">0c1af902223b6fcedb60904ca0b551254686c7b9</a> <a href="https://git.kernel.org/stable/c/69d3c69ade1e4285ab4ca48fe7acee0767e65604" target="_blank" class="ref-link">69d3c69ade1e4285ab4ca48fe7acee0767e65604</a> <a href="https://git.kernel.org/stable/c/7bc5da4842bed3252d26e742213741a4d0ac1b14" target="_blank" class="ref-link">7bc5da4842bed3252d26e742213741a4d0ac1b14</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43076" target="_blank">CVE-2026-43076 — In the Linux kernel, the following vulnerability has been resolved:
+
+ocfs2: validate inline data i_size during inode rea…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ocfs2: validate inline data i_size during inode read
+
+When reading an inode from disk, ocfs2_validate_inode_block() performs
+various sanity checks but does not validate the size of inline data.  If
+the filesystem is corrupted, an i…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1524af3685b35feac76662cc551cbc37bd14775f" target="_blank" class="ref-link">1524af3685b35feac76662cc551cbc37bd14775f</a> <a href="https://git.kernel.org/stable/c/37f074e65f24f10f8d8df224a572e4cb9e6faf63" target="_blank" class="ref-link">37f074e65f24f10f8d8df224a572e4cb9e6faf63</a> <a href="https://git.kernel.org/stable/c/77d0295725109d77f5854ef5b58c0d06c08168cc" target="_blank" class="ref-link">77d0295725109d77f5854ef5b58c0d06c08168cc</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43078" target="_blank">CVE-2026-43078 — In the Linux kernel, the following vulnerability has been resolved:
+
+crypto: af_alg - Fix page reassignment overflow in …</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+crypto: af_alg - Fix page reassignment overflow in af_alg_pull_tsgl
+
+When page reassignment was added to af_alg_pull_tsgl the original
+loop wasn't updated so it may try to reassign one more page than
+necessary.
+
+Add the check to th…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/2b781d1d4f933990318bcc5c68fb75a717379e42" target="_blank" class="ref-link">2b781d1d4f933990318bcc5c68fb75a717379e42</a> <a href="https://git.kernel.org/stable/c/31d00156e50ecad37f2cb6cbf04aaa9a260505ef" target="_blank" class="ref-link">31d00156e50ecad37f2cb6cbf04aaa9a260505ef</a> <a href="https://git.kernel.org/stable/c/710a4ce5d7afd9fe082c75dec282ab4a11c0fe71" target="_blank" class="ref-link">710a4ce5d7afd9fe082c75dec282ab4a11c0fe71</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43084" target="_blank">CVE-2026-43084 — In the Linux kernel, the following vulnerability has been resolved:
+
+netfilter: nfnetlink_queue: make hash table per que…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+netfilter: nfnetlink_queue: make hash table per queue
+
+Sharing a global hash table among all queues is tempting, but
+it can cause crash:
+
+BUG: KASAN: slab-use-after-free in nfqnl_recv_verdict+0x11ac/0x15e0 [nfnetlink_queue]
+[..]
+ n…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/22730cb96093b5be0609063bbb1923dbecd61252" target="_blank" class="ref-link">22730cb96093b5be0609063bbb1923dbecd61252</a> <a href="https://git.kernel.org/stable/c/41e3652a178cb0eecd48e0e6e27fbb73a004046a" target="_blank" class="ref-link">41e3652a178cb0eecd48e0e6e27fbb73a004046a</a> <a href="https://git.kernel.org/stable/c/936206e3f6ff411581e615e930263d6f8b78df9d" target="_blank" class="ref-link">936206e3f6ff411581e615e930263d6f8b78df9d</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43091" target="_blank">CVE-2026-43091 — In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm: Wait for RCU readers during policy netns exit…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm: Wait for RCU readers during policy netns exit
+
+xfrm_policy_fini() frees the policy_bydst hash tables after flushing the
+policy work items and deleting all policies, but it does not wait for
+concurrent RCU readers to leave the…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/069daad4f2ae9c5c108131995529d5f02392c446" target="_blank" class="ref-link">069daad4f2ae9c5c108131995529d5f02392c446</a> <a href="https://git.kernel.org/stable/c/33a3149dd81a1e2f52b80ee1e0fc380b39f3d028" target="_blank" class="ref-link">33a3149dd81a1e2f52b80ee1e0fc380b39f3d028</a> <a href="https://git.kernel.org/stable/c/3733fce2871c9bca9dd18a1a23b1432ea215a094" target="_blank" class="ref-link">3733fce2871c9bca9dd18a1a23b1432ea215a094</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43093" target="_blank">CVE-2026-43093 — In the Linux kernel, the following vulnerability has been resolved:
+
+xsk: tighten UMEM headroom validation to account fo…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xsk: tighten UMEM headroom validation to account for tailroom and min frame
+
+The current headroom validation in xdp_umem_reg() could leave us with
+insufficient space dedicated to even receive minimum-sized ethernet
+frame. Furthermo…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0ec4d3f6e6934deb843b561ae048cd17218e5ad1" target="_blank" class="ref-link">0ec4d3f6e6934deb843b561ae048cd17218e5ad1</a> <a href="https://git.kernel.org/stable/c/6523bc1b40e69301f24c14338b762af4739d6d39" target="_blank" class="ref-link">6523bc1b40e69301f24c14338b762af4739d6d39</a> <a href="https://git.kernel.org/stable/c/9ea6ba4f3195dcba6e8b3e7b2e748593b7cafb12" target="_blank" class="ref-link">9ea6ba4f3195dcba6e8b3e7b2e748593b7cafb12</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43099" target="_blank">CVE-2026-43099 — In the Linux kernel, the following vulnerability has been resolved:
+
+ipv4: icmp: fix null-ptr-deref in icmp_build_probe(…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ipv4: icmp: fix null-ptr-deref in icmp_build_probe()
+
+ipv6_stub->ipv6_dev_find() may return ERR_PTR(-EAFNOSUPPORT) when the
+IPv6 stack is not active (CONFIG_IPV6=m and not loaded), and passing
+this error pointer to dev_hold() will …</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:75%;background:#ff8c00"></div>
+        <span class="score-num">7.5</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/47a8bf52156ac7e7a581eca31c1f964ba4258d4d" target="_blank" class="ref-link">47a8bf52156ac7e7a581eca31c1f964ba4258d4d</a> <a href="https://git.kernel.org/stable/c/5b9911582d441f72fe6ccb15ffe3303bbc07f6f5" target="_blank" class="ref-link">5b9911582d441f72fe6ccb15ffe3303bbc07f6f5</a> <a href="https://git.kernel.org/stable/c/6be325206850a0891896d38bcf83a09d8b54ec48" target="_blank" class="ref-link">6be325206850a0891896d38bcf83a09d8b54ec48</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43101" target="_blank">CVE-2026-43101 — In the Linux kernel, the following vulnerability has been resolved:
+
+ipv6: ioam: fix potential NULL dereferences in __io…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ipv6: ioam: fix potential NULL dereferences in __ioam6_fill_trace_data()
+
+We need to check __in6_dev_get() for possible NULL value, as
+suggested by Yiming Qian.
+
+Also add skb_dst_dev_rcu() instead of skb_dst_dev(),
+and two missing …</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:75%;background:#ff8c00"></div>
+        <span class="score-num">7.5</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/3719c234fa94c37c955b1ecd3742ef280ec135e6" target="_blank" class="ref-link">3719c234fa94c37c955b1ecd3742ef280ec135e6</a> <a href="https://git.kernel.org/stable/c/4198aab6f000b4febb18ea820fea20634dd789c7" target="_blank" class="ref-link">4198aab6f000b4febb18ea820fea20634dd789c7</a> <a href="https://git.kernel.org/stable/c/4e65a8b8daa18d63255ec58964dd192c7fdd9f8b" target="_blank" class="ref-link">4e65a8b8daa18d63255ec58964dd192c7fdd9f8b</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="linux">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43106" target="_blank">CVE-2026-43106 — In the Linux kernel, the following vulnerability has been resolved:
+
+cachefiles: fix incorrect dentry refcount in cachef…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+cachefiles: fix incorrect dentry refcount in cachefiles_cull()
+
+The patch mentioned below changed cachefiles_bury_object() to expect 2
+references to the 'rep' dentry.  Three of the callers were changed to
+use start_removing_dentry(…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:78%;background:#ff8c00"></div>
+        <span class="score-num">7.8</span>
+      </div>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1635c2acdde86c4f555b627aec873c8677c421ed" target="_blank" class="ref-link">1635c2acdde86c4f555b627aec873c8677c421ed</a> <a href="https://git.kernel.org/stable/c/6577df7dc7a7de128442b6192c7a32195c923480" target="_blank" class="ref-link">6577df7dc7a7de128442b6192c7a32195c923480</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="HIGH" data-cats="kubernetes">
+      <div class="card-stripe" style="background:#ff8c00"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#ff8c00">HIGH</span>
+            <span class="pill pill-kubernetes">☸️ Kubernetes</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-09</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-42296" target="_blank">CVE-2026-42296 — Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior t…</a>
+        </div>
+        <div class="card-desc">Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior to versions 3.7.14 and 4.0.5, a user with create Workflow permission can bypass templateReferencing: Strict to get host network access, switch service accounts, override pod securit…</div>
+        <div class="card-footer">
+          
+      <div class="score-wrap">
+        <div class="score-bar" style="width:81%;background:#ff8c00"></div>
+        <span class="score-num">8.1</span>
+      </div>
+          <div class="refs"><a href="https://github.com/argoproj/argo-workflows/commit/534f4ff1cbd86908e8ff76d97d553ad5a49a950d" target="_blank" class="ref-link">534f4ff1cbd86908e8ff76d97d553ad5a49a950d</a> <a href="https://github.com/argoproj/argo-workflows/releases/tag/v3.7.14" target="_blank" class="ref-link">v3.7.14</a> <a href="https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5" target="_blank" class="ref-link">v4.0.5</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43059" target="_blank">CVE-2026-43059 — In the Linux kernel, the following vulnerability has been resolved:
+
+Bluetooth: MGMT: Fix list corruption and UAF in com…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+Bluetooth: MGMT: Fix list corruption and UAF in command complete handlers
+
+Commit 302a1f674c00 ("Bluetooth: MGMT: Fix possible UAFs") introduced
+mgmt_pending_valid(), which not only validates the pending command but
+also unlinks it…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/02023ff760cc104a5d86a82ef5b8dd89098ad78d" target="_blank" class="ref-link">02023ff760cc104a5d86a82ef5b8dd89098ad78d</a> <a href="https://git.kernel.org/stable/c/17f89341cb4281d1da0e2fb0de5406ab7c4e25ef" target="_blank" class="ref-link">17f89341cb4281d1da0e2fb0de5406ab7c4e25ef</a> <a href="https://git.kernel.org/stable/c/695b45b2262fcb5e71bed1175aad59c72f92aa78" target="_blank" class="ref-link">695b45b2262fcb5e71bed1175aad59c72f92aa78</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43061" target="_blank">CVE-2026-43061 — In the Linux kernel, the following vulnerability has been resolved:
+
+serial: 8250: Fix TX deadlock when using DMA
+
+`dmae…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+serial: 8250: Fix TX deadlock when using DMA
+
+`dmaengine_terminate_async` does not guarantee that the
+`__dma_tx_complete` callback will run. The callback is currently the
+only place where `dma->tx_running` gets cleared. If the tran…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/2a72403b985aea6b4aac3171830492f9a387f9e1" target="_blank" class="ref-link">2a72403b985aea6b4aac3171830492f9a387f9e1</a> <a href="https://git.kernel.org/stable/c/5f6b17562f03fc65c7d3474ef8f1959b19d1ca41" target="_blank" class="ref-link">5f6b17562f03fc65c7d3474ef8f1959b19d1ca41</a> <a href="https://git.kernel.org/stable/c/79a19bd936bb35f56ef0ccab1b3b59ebce8c762d" target="_blank" class="ref-link">79a19bd936bb35f56ef0ccab1b3b59ebce8c762d</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43064" target="_blank">CVE-2026-43064 — In the Linux kernel, the following vulnerability has been resolved:
+
+dmaengine: idxd: Fix not releasing workqueue on .re…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+dmaengine: idxd: Fix not releasing workqueue on .release()
+
+The workqueue associated with an DSA/IAA device is not released when
+the object is freed.</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/2bb9e9e93adff9cc8a138ae9a3a8d59b3452272e" target="_blank" class="ref-link">2bb9e9e93adff9cc8a138ae9a3a8d59b3452272e</a> <a href="https://git.kernel.org/stable/c/3d33de353b1ff9023d5ec73b9becf80ea87af695" target="_blank" class="ref-link">3d33de353b1ff9023d5ec73b9becf80ea87af695</a> <a href="https://git.kernel.org/stable/c/958e96533ddbd1edd127feb7624a7eed0cc379dc" target="_blank" class="ref-link">958e96533ddbd1edd127feb7624a7eed0cc379dc</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43065" target="_blank">CVE-2026-43065 — In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: always drain queued discard work in ext4_mb_r…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: always drain queued discard work in ext4_mb_release()
+
+While reviewing recent ext4 patch[1], Sashiko raised the following
+concern[2]:
+
+> If the filesystem is initially mounted with the discard option,
+> deleting files will po…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1c82f863f090ab899085bdfade073313384b514b" target="_blank" class="ref-link">1c82f863f090ab899085bdfade073313384b514b</a> <a href="https://git.kernel.org/stable/c/812b6a7cd3e7f3a3e8a24db85bc6313c26cb1098" target="_blank" class="ref-link">812b6a7cd3e7f3a3e8a24db85bc6313c26cb1098</a> <a href="https://git.kernel.org/stable/c/9b4d9dda6a71ad3425c8109d27c4c6bfb9da97b8" target="_blank" class="ref-link">9b4d9dda6a71ad3425c8109d27c4c6bfb9da97b8</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43066" target="_blank">CVE-2026-43066 — In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: fix iloc.bh leak in ext4_fc_replay_inode() er…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: fix iloc.bh leak in ext4_fc_replay_inode() error paths
+
+During code review, Joseph found that ext4_fc_replay_inode() calls
+ext4_get_fc_inode_loc() to get the inode location, which holds a
+reference to iloc.bh that must be rel…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0892f12cd49fde5d5db68137923db107f894f3a3" target="_blank" class="ref-link">0892f12cd49fde5d5db68137923db107f894f3a3</a> <a href="https://git.kernel.org/stable/c/19782b4c793b49a6aa4abbb307ddff3610009d21" target="_blank" class="ref-link">19782b4c793b49a6aa4abbb307ddff3610009d21</a> <a href="https://git.kernel.org/stable/c/5a63033696e60b5d70816f1d119645ac5b0b0a03" target="_blank" class="ref-link">5a63033696e60b5d70816f1d119645ac5b0b0a03</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43068" target="_blank">CVE-2026-43068 — In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: avoid allocate block from corrupted group in …</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ext4: avoid allocate block from corrupted group in ext4_mb_find_by_goal()
+
+There's issue as follows:
+...
+EXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 206 at logical offset 0 with max blocks 1 with error 117
+EXT4-f…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0b84571c886719823d537f05f4f07cad6357c4b7" target="_blank" class="ref-link">0b84571c886719823d537f05f4f07cad6357c4b7</a> <a href="https://git.kernel.org/stable/c/1895f7904be71c48f1e6f338b28f24dabd6b8aeb" target="_blank" class="ref-link">1895f7904be71c48f1e6f338b28f24dabd6b8aeb</a> <a href="https://git.kernel.org/stable/c/1c0d7c4cde38a887c6d74e0c89ddb25226943c78" target="_blank" class="ref-link">1c0d7c4cde38a887c6d74e0c89ddb25226943c78</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43069" target="_blank">CVE-2026-43069 — In the Linux kernel, the following vulnerability has been resolved:
+
+Bluetooth: hci_ll: Fix firmware leak on error path
+…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+Bluetooth: hci_ll: Fix firmware leak on error path
+
+Smatch reports:
+
+drivers/bluetooth/hci_ll.c:587 download_firmware() warn:
+'fw' from request_firmware() not released on lines: 544.
+
+In download_firmware(), if request_firmware() s…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/28904375d54b436a757641fb0331537778c0de5a" target="_blank" class="ref-link">28904375d54b436a757641fb0331537778c0de5a</a> <a href="https://git.kernel.org/stable/c/31148a7be723aa9f2e8fbd62424825ab8d577973" target="_blank" class="ref-link">31148a7be723aa9f2e8fbd62424825ab8d577973</a> <a href="https://git.kernel.org/stable/c/5213ef54528dd1ac79b846e30d8f72ce092794aa" target="_blank" class="ref-link">5213ef54528dd1ac79b846e30d8f72ce092794aa</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43072" target="_blank">CVE-2026-43072 — In the Linux kernel, the following vulnerability has been resolved:
+
+drm/vc4: platform_get_irq_byname() returns an int
+
+…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+drm/vc4: platform_get_irq_byname() returns an int
+
+platform_get_irq_byname() will return a negative value if an error
+happens, so it should be checked and not just passed directly into
+devm_request_threaded_irq() hoping all will be…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0185e0494a561edfc482507f9de89c2ad798b33d" target="_blank" class="ref-link">0185e0494a561edfc482507f9de89c2ad798b33d</a> <a href="https://git.kernel.org/stable/c/0c1b117f7ba46fb8f6ebc5e0bfe5b58568c301ba" target="_blank" class="ref-link">0c1b117f7ba46fb8f6ebc5e0bfe5b58568c301ba</a> <a href="https://git.kernel.org/stable/c/63c11b19cdc154fa848a6c3b535bfb1dc7b60378" target="_blank" class="ref-link">63c11b19cdc154fa848a6c3b535bfb1dc7b60378</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-05</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43073" target="_blank">CVE-2026-43073 — In the Linux kernel, the following vulnerability has been resolved:
+
+x86-64: rename misleadingly named '__copy_user_noca…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+x86-64: rename misleadingly named '__copy_user_nocache()' function
+
+This function was a masterclass in bad naming, for various historical
+reasons.
+
+It claimed to be a non-cached user copy.  It is literally _neither_ of
+those things…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/14b9194db4a28421a4dbe5d6e519efbaa7c5f3cd" target="_blank" class="ref-link">14b9194db4a28421a4dbe5d6e519efbaa7c5f3cd</a> <a href="https://git.kernel.org/stable/c/c6d4e0599e7e73abc04e2488dfeb7940c4039660" target="_blank" class="ref-link">c6d4e0599e7e73abc04e2488dfeb7940c4039660</a> <a href="https://git.kernel.org/stable/c/d187a86de793f84766ea40b9ade7ac60aabbb4fe" target="_blank" class="ref-link">d187a86de793f84766ea40b9ade7ac60aabbb4fe</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43077" target="_blank">CVE-2026-43077 — In the Linux kernel, the following vulnerability has been resolved:
+
+crypto: algif_aead - Fix minimum RX size check for …</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+crypto: algif_aead - Fix minimum RX size check for decryption
+
+The check for the minimum receive buffer size did not take the
+tag size into account during decryption.  Fix this by adding the
+required extra length.</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1c76b5675119f694458293a2a81f40731c69bd32" target="_blank" class="ref-link">1c76b5675119f694458293a2a81f40731c69bd32</a> <a href="https://git.kernel.org/stable/c/3afdc15d6173614d7d834517d9b65e7aa5a08548" target="_blank" class="ref-link">3afdc15d6173614d7d834517d9b65e7aa5a08548</a> <a href="https://git.kernel.org/stable/c/3d14bd48e3a77091cbce637a12c2ae31b4a1687c" target="_blank" class="ref-link">3d14bd48e3a77091cbce637a12c2ae31b4a1687c</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43079" target="_blank">CVE-2026-43079 — In the Linux kernel, the following vulnerability has been resolved:
+
+perf/x86/intel/uncore: Skip discovery table for off…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+perf/x86/intel/uncore: Skip discovery table for offline dies
+
+This warning can be triggered if NUMA is disabled and the system
+boots with fewer CPUs than the number of CPUs in die 0.
+
+WARNING: CPU: 9 PID: 7257 at uncore.c:1157 unco…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/6cfc187d85f18f976d0fe527d4c6f6171542cc19" target="_blank" class="ref-link">6cfc187d85f18f976d0fe527d4c6f6171542cc19</a> <a href="https://git.kernel.org/stable/c/7a2cb02437d92ed14fe494d8994056d5bd2c72b4" target="_blank" class="ref-link">7a2cb02437d92ed14fe494d8994056d5bd2c72b4</a> <a href="https://git.kernel.org/stable/c/7b568e9eba2fad89a696f22f0413d44cf4a1f892" target="_blank" class="ref-link">7b568e9eba2fad89a696f22f0413d44cf4a1f892</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43080" target="_blank">CVE-2026-43080 — In the Linux kernel, the following vulnerability has been resolved:
+
+l2tp: Drop large packets with UDP encap
+
+syzbot rep…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+l2tp: Drop large packets with UDP encap
+
+syzbot reported a WARN on my patch series [1]. The actual issue is an
+overflow of 16-bit UDP length field, and it exists in the upstream code.
+My series added a debug WARN with an overflow c…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/77c1489398c85a844f90205f5e76fd6bc8bb4089" target="_blank" class="ref-link">77c1489398c85a844f90205f5e76fd6bc8bb4089</a> <a href="https://git.kernel.org/stable/c/86534c97abd6365a9a021fd767a2023e63c44469" target="_blank" class="ref-link">86534c97abd6365a9a021fd767a2023e63c44469</a> <a href="https://git.kernel.org/stable/c/9ccce02d501335f59a02f26c878c5e095b16302f" target="_blank" class="ref-link">9ccce02d501335f59a02f26c878c5e095b16302f</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43081" target="_blank">CVE-2026-43081 — In the Linux kernel, the following vulnerability has been resolved:
+
+net: ipa: fix GENERIC_CMD register field masks for …</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+net: ipa: fix GENERIC_CMD register field masks for IPA v5.0+
+
+Fix the field masks to match the hardware layout documented in
+downstream GSI (GSI_V3_0_EE_n_GSI_EE_GENERIC_CMD_*).
+
+Notably this fixes a WARN I was seeing when I tried …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/2aa50d2c1f631b405849da246043c6f683af7489" target="_blank" class="ref-link">2aa50d2c1f631b405849da246043c6f683af7489</a> <a href="https://git.kernel.org/stable/c/9709b56d908acc120fe8b4ae250b3c9d749ea832" target="_blank" class="ref-link">9709b56d908acc120fe8b4ae250b3c9d749ea832</a> <a href="https://git.kernel.org/stable/c/a7d326dfb13b5a0763eccfd78836fe15199fc499" target="_blank" class="ref-link">a7d326dfb13b5a0763eccfd78836fe15199fc499</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43082" target="_blank">CVE-2026-43082 — In the Linux kernel, the following vulnerability has been resolved:
+
+net: txgbe: leave space for null terminators on pro…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+net: txgbe: leave space for null terminators on property_entry
+
+Lists of struct property_entry are supposed to be terminated with an
+empty property, this driver currently seems to be allocating exactly the
+amount of entry used.
+
+Ch…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/00e1d650fa4b228ef1faea8e29effe4b4861e6e4" target="_blank" class="ref-link">00e1d650fa4b228ef1faea8e29effe4b4861e6e4</a> <a href="https://git.kernel.org/stable/c/16eb3c2f86de9a21aefe7a6386607d4cd3947a77" target="_blank" class="ref-link">16eb3c2f86de9a21aefe7a6386607d4cd3947a77</a> <a href="https://git.kernel.org/stable/c/5a37d228799b0ec2c277459c83c814a59d310bc3" target="_blank" class="ref-link">5a37d228799b0ec2c277459c83c814a59d310bc3</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43085" target="_blank">CVE-2026-43085 — In the Linux kernel, the following vulnerability has been resolved:
+
+netfilter: nfnetlink_log: initialize nfgenmsg in NL…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+netfilter: nfnetlink_log: initialize nfgenmsg in NLMSG_DONE terminator
+
+When batching multiple NFLOG messages (inst->qlen > 1), __nfulnl_send()
+appends an NLMSG_DONE terminator with sizeof(struct nfgenmsg) payload via
+nlmsg_put(), …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/15d209bccf9273b4a8b4e579ba0e92d065b6ec8c" target="_blank" class="ref-link">15d209bccf9273b4a8b4e579ba0e92d065b6ec8c</a> <a href="https://git.kernel.org/stable/c/1f3083aec8836213da441270cdb1ab612dd82cf4" target="_blank" class="ref-link">1f3083aec8836213da441270cdb1ab612dd82cf4</a> <a href="https://git.kernel.org/stable/c/368c22aea490f6f50df831b4f9e3623787686c5b" target="_blank" class="ref-link">368c22aea490f6f50df831b4f9e3623787686c5b</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43086" target="_blank">CVE-2026-43086 — In the Linux kernel, the following vulnerability has been resolved:
+
+ipvs: fix NULL deref in ip_vs_add_service error pat…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ipvs: fix NULL deref in ip_vs_add_service error path
+
+When ip_vs_bind_scheduler() succeeds in ip_vs_add_service(), the local
+variable sched is set to NULL.  If ip_vs_start_estimator() subsequently
+fails, the out_err cleanup calls i…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/4039959315008888dd53c37674d33351817a5166" target="_blank" class="ref-link">4039959315008888dd53c37674d33351817a5166</a> <a href="https://git.kernel.org/stable/c/730663352c9178f33fcf5929f4a37c1f1ca5a693" target="_blank" class="ref-link">730663352c9178f33fcf5929f4a37c1f1ca5a693</a> <a href="https://git.kernel.org/stable/c/9a91797e61d286805ae10a92cc48959c30800556" target="_blank" class="ref-link">9a91797e61d286805ae10a92cc48959c30800556</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43087" target="_blank">CVE-2026-43087 — In the Linux kernel, the following vulnerability has been resolved:
+
+pinctrl: mcp23s08: Disable all pin interrupts durin…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+pinctrl: mcp23s08: Disable all pin interrupts during probe
+
+A chip being probed may have the interrupt-on-change feature enabled on
+some of its pins, for example after a reboot. This can cause the chip to
+generate interrupts for pi…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/db5b8cecbdf479ad13156af750377e5b43853fab" target="_blank" class="ref-link">db5b8cecbdf479ad13156af750377e5b43853fab</a> <a href="https://git.kernel.org/stable/c/f8c3258541a0680a4ebc08b05b2bc5fdad3288a9" target="_blank" class="ref-link">f8c3258541a0680a4ebc08b05b2bc5fdad3288a9</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43088" target="_blank">CVE-2026-43088 — In the Linux kernel, the following vulnerability has been resolved:
+
+net: af_key: zero aligned sockaddr tail in PF_KEY e…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+net: af_key: zero aligned sockaddr tail in PF_KEY exports
+
+PF_KEY export paths use `pfkey_sockaddr_size()` when reserving sockaddr
+payload space, so IPv6 addresses occupy 32 bytes on the wire. However,
+`pfkey_sockaddr_fill()` initi…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/2e74f974359b5382ecbe8536abbb5b837eb6c724" target="_blank" class="ref-link">2e74f974359b5382ecbe8536abbb5b837eb6c724</a> <a href="https://git.kernel.org/stable/c/426c355742f02cf743b347d9d7dbdc1bfbfa31ef" target="_blank" class="ref-link">426c355742f02cf743b347d9d7dbdc1bfbfa31ef</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43089" target="_blank">CVE-2026-43089 — In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm_user: fix info leak in build_mapping()
+
+struct…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm_user: fix info leak in build_mapping()
+
+struct xfrm_usersa_id has a one-byte padding hole after the proto
+field, which ends up never getting set to zero before copying out to
+userspace.  Fix that up by zeroing out the whole st…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1beb76b2053b68c491b78370794b8ff63c8f8c02" target="_blank" class="ref-link">1beb76b2053b68c491b78370794b8ff63c8f8c02</a> <a href="https://git.kernel.org/stable/c/5a1a4b049ddde41466ccac0daeec326254b133f2" target="_blank" class="ref-link">5a1a4b049ddde41466ccac0daeec326254b133f2</a> <a href="https://git.kernel.org/stable/c/700c9622b23c33b5933e6dcea816492c064e4e10" target="_blank" class="ref-link">700c9622b23c33b5933e6dcea816492c064e4e10</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43090" target="_blank">CVE-2026-43090 — In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm: fix refcount leak in xfrm_migrate_policy_find…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm: fix refcount leak in xfrm_migrate_policy_find
+
+syzkaller reported a memory leak in xfrm_policy_alloc:
+
+  BUG: memory leak
+  unreferenced object 0xffff888114d79000 (size 1024):
+    comm "syz.1.17", pid 931
+    ...
+    xfrm_pol…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/21e235a36cfb6d145cefb10728f12f5dc5412f54" target="_blank" class="ref-link">21e235a36cfb6d145cefb10728f12f5dc5412f54</a> <a href="https://git.kernel.org/stable/c/70c2a89a3bc207c3bfbf6f21bb439809e0a4a27a" target="_blank" class="ref-link">70c2a89a3bc207c3bfbf6f21bb439809e0a4a27a</a> <a href="https://git.kernel.org/stable/c/83317cce60a032c49480dcdabe146435bd689d03" target="_blank" class="ref-link">83317cce60a032c49480dcdabe146435bd689d03</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43092" target="_blank">CVE-2026-43092 — In the Linux kernel, the following vulnerability has been resolved:
+
+xsk: validate MTU against usable frame size on bind…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xsk: validate MTU against usable frame size on bind
+
+AF_XDP bind currently accepts zero-copy pool configurations without
+verifying that the device MTU fits into the usable frame space provided
+by the UMEM chunk.
+
+This becomes a pro…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/25e1e91a8da819924df0b16e3812d7b24c8ce133" target="_blank" class="ref-link">25e1e91a8da819924df0b16e3812d7b24c8ce133</a> <a href="https://git.kernel.org/stable/c/36ee60b569ba0dfb6f961333b90d19ab5b323fa9" target="_blank" class="ref-link">36ee60b569ba0dfb6f961333b90d19ab5b323fa9</a> <a href="https://git.kernel.org/stable/c/a55793e5a97d4e39bdb380873a9780fe0010bff6" target="_blank" class="ref-link">a55793e5a97d4e39bdb380873a9780fe0010bff6</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43094" target="_blank">CVE-2026-43094 — In the Linux kernel, the following vulnerability has been resolved:
+
+ixgbevf: add missing negotiate_features op to Hyper…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ixgbevf: add missing negotiate_features op to Hyper-V ops table
+
+Commit a7075f501bd3 ("ixgbevf: fix mailbox API compatibility by
+negotiating supported features") added the .negotiate_features callback
+to ixgbe_mac_operations and po…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1455ff8809843e6e83f1f5b5c0bcc2224c99a3cb" target="_blank" class="ref-link">1455ff8809843e6e83f1f5b5c0bcc2224c99a3cb</a> <a href="https://git.kernel.org/stable/c/2270ebab53128fb73c4a70a292be09094074737f" target="_blank" class="ref-link">2270ebab53128fb73c4a70a292be09094074737f</a> <a href="https://git.kernel.org/stable/c/4821d563cd7f251ae728be1a6d04af82a294a5b9" target="_blank" class="ref-link">4821d563cd7f251ae728be1a6d04af82a294a5b9</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43095" target="_blank">CVE-2026-43095 — In the Linux kernel, the following vulnerability has been resolved:
+
+ASoC: SDCA: Fix errors in IRQ cleanup
+
+IRQs are ena…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+ASoC: SDCA: Fix errors in IRQ cleanup
+
+IRQs are enabled through sdca_irq_populate() from component probe
+using devm_request_threaded_irq(), this however means the IRQs can
+persist if the sound card is torn down. Some of the IRQ han…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/4e53116437e919c4b9a9d95fb73ae14fe0cfc8f9" target="_blank" class="ref-link">4e53116437e919c4b9a9d95fb73ae14fe0cfc8f9</a> <a href="https://git.kernel.org/stable/c/b022da127bd9d2217e8f285e643caf5aff6f7f14" target="_blank" class="ref-link">b022da127bd9d2217e8f285e643caf5aff6f7f14</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43096" target="_blank">CVE-2026-43096 — In the Linux kernel, the following vulnerability has been resolved:
+
+mshv: Fix infinite fault loop on permission-denied …</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+mshv: Fix infinite fault loop on permission-denied GPA intercepts
+
+Prevent infinite fault loops when guests access memory regions without
+proper permissions. Currently, mshv_handle_gpa_intercept() attempts to
+remap pages for all fa…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/02226839079ccc558820a3b25c4c46812927b4ba" target="_blank" class="ref-link">02226839079ccc558820a3b25c4c46812927b4ba</a> <a href="https://git.kernel.org/stable/c/16cbec24897624051b324aa3a85859c38ca65fde" target="_blank" class="ref-link">16cbec24897624051b324aa3a85859c38ca65fde</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43097" target="_blank">CVE-2026-43097 — In the Linux kernel, the following vulnerability has been resolved:
+
+PCI: hv: Fix double ida_free in hv_pci_probe error …</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+PCI: hv: Fix double ida_free in hv_pci_probe error path
+
+If hv_pci_probe() fails after storing the domain number in
+hbus->bridge->domain_nr, there is a call to free this domain_nr via
+pci_bus_release_emul_domain_nr(), however, duri…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/21bc8e0ba5c2a081b0a2808c976d4c9dbddf1e48" target="_blank" class="ref-link">21bc8e0ba5c2a081b0a2808c976d4c9dbddf1e48</a> <a href="https://git.kernel.org/stable/c/b6422dff0e518245019233432b6bccfc30b73e2f" target="_blank" class="ref-link">b6422dff0e518245019233432b6bccfc30b73e2f</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43098" target="_blank">CVE-2026-43098 — In the Linux kernel, the following vulnerability has been resolved:
+
+nfc: s3fwrn5: allocate rx skb before consuming byte…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+nfc: s3fwrn5: allocate rx skb before consuming bytes
+
+s3fwrn82_uart_read() reports the number of accepted bytes to the serdev
+core. The current code consumes bytes into recv_skb and may already
+deliver a complete frame before alloc…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/09822d3d6f68a0cdc4626e0c507324a4927f55a9" target="_blank" class="ref-link">09822d3d6f68a0cdc4626e0c507324a4927f55a9</a> <a href="https://git.kernel.org/stable/c/5c14a19d5b1645cce1cb1252833d70b23635b632" target="_blank" class="ref-link">5c14a19d5b1645cce1cb1252833d70b23635b632</a> <a href="https://git.kernel.org/stable/c/6d931680a9851481c3243689488eafed08eeff71" target="_blank" class="ref-link">6d931680a9851481c3243689488eafed08eeff71</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43100" target="_blank">CVE-2026-43100 — In the Linux kernel, the following vulnerability has been resolved:
+
+bridge: guard local VLAN-0 FDB helpers against NULL…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+bridge: guard local VLAN-0 FDB helpers against NULL vlan group
+
+When CONFIG_BRIDGE_VLAN_FILTERING is not set, br_vlan_group() and
+nbp_vlan_group() return NULL (br_private.h stub definitions). The
+BR_BOOLOPT_FDB_LOCAL_VLAN_0 toggle …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/1979645e1842cb7017525a61a0e0e0beb924d02a" target="_blank" class="ref-link">1979645e1842cb7017525a61a0e0e0beb924d02a</a> <a href="https://git.kernel.org/stable/c/ddf0ec2d600e7dad62b89692749534d7900a732a" target="_blank" class="ref-link">ddf0ec2d600e7dad62b89692749534d7900a732a</a> <a href="https://git.kernel.org/stable/c/fb612d436ff0317659e45a91c25fd7d9516f5b1b" target="_blank" class="ref-link">fb612d436ff0317659e45a91c25fd7d9516f5b1b</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43102" target="_blank">CVE-2026-43102 — In the Linux kernel, the following vulnerability has been resolved:
+
+net: airoha: Fix memory leak in airoha_qdma_rx_proc…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+net: airoha: Fix memory leak in airoha_qdma_rx_process()
+
+If an error occurs on the subsequents buffers belonging to the
+non-linear part of the skb (e.g. due to an error in the payload length
+reported by the NIC or if we consumed a…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/285fa6b1e03cff78ead0383e1b259c44b95faf90" target="_blank" class="ref-link">285fa6b1e03cff78ead0383e1b259c44b95faf90</a> <a href="https://git.kernel.org/stable/c/4429b761874fb9c7767d12d98913a467ef2654f1" target="_blank" class="ref-link">4429b761874fb9c7767d12d98913a467ef2654f1</a> <a href="https://git.kernel.org/stable/c/7ee0063fbab8aea8f4e4e3165f541bf898b77b80" target="_blank" class="ref-link">7ee0063fbab8aea8f4e4e3165f541bf898b77b80</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43103" target="_blank">CVE-2026-43103 — In the Linux kernel, the following vulnerability has been resolved:
+
+net: lapbether: handle NETDEV_PRE_TYPE_CHANGE
+
+lapb…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+net: lapbether: handle NETDEV_PRE_TYPE_CHANGE
+
+lapbeth_data_transmit() expects the underlying device type
+to be ARPHRD_ETHER.
+
+Returning NOTIFY_BAD from lapbeth_device_event() makes sure
+bonding driver can not break this expectatio…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/328bb2cff5c2ed973f595ded769e15f4b7a117be" target="_blank" class="ref-link">328bb2cff5c2ed973f595ded769e15f4b7a117be</a> <a href="https://git.kernel.org/stable/c/363a38044b8cd5b496d241651a1fb666e7c5fe3e" target="_blank" class="ref-link">363a38044b8cd5b496d241651a1fb666e7c5fe3e</a> <a href="https://git.kernel.org/stable/c/63851f60781aa89258c8f0952cd13940aab0888e" target="_blank" class="ref-link">63851f60781aa89258c8f0952cd13940aab0888e</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43104" target="_blank">CVE-2026-43104 — In the Linux kernel, the following vulnerability has been resolved:
+
+drm/vc4: Fix a memory leak in hang state error path…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+drm/vc4: Fix a memory leak in hang state error path
+
+When vc4_save_hang_state() encounters an early return condition, it
+returns without freeing the previously allocated `kernel_state`,
+leaking memory.
+
+Add the missing kfree() call…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/3eb7dd55021d0f4308fbea0bea21d2118984d8e7" target="_blank" class="ref-link">3eb7dd55021d0f4308fbea0bea21d2118984d8e7</a> <a href="https://git.kernel.org/stable/c/9525d169e5fd481538cf8c663cc5839e54f2e481" target="_blank" class="ref-link">9525d169e5fd481538cf8c663cc5839e54f2e481</a> <a href="https://git.kernel.org/stable/c/d8fdd6adc07b78ad3e9ee0004876d90cb59ca941" target="_blank" class="ref-link">d8fdd6adc07b78ad3e9ee0004876d90cb59ca941</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43105" target="_blank">CVE-2026-43105 — In the Linux kernel, the following vulnerability has been resolved:
+
+drm/vc4: Fix memory leak of BO array in hang state
+…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+drm/vc4: Fix memory leak of BO array in hang state
+
+The hang state's BO array is allocated separately with kzalloc() in
+vc4_save_hang_state() but never freed in vc4_free_hang_state(). Add the
+missing kfree() for the BO array before…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/0d3c014a84396a147705f523a8fd6fc873e76502" target="_blank" class="ref-link">0d3c014a84396a147705f523a8fd6fc873e76502</a> <a href="https://git.kernel.org/stable/c/421cea4f71f7cf65abaae878562ee4aa2b684628" target="_blank" class="ref-link">421cea4f71f7cf65abaae878562ee4aa2b684628</a> <a href="https://git.kernel.org/stable/c/a812008fe3a0aebb778d277b35717f64e23d0302" target="_blank" class="ref-link">a812008fe3a0aebb778d277b35717f64e23d0302</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43107" target="_blank">CVE-2026-43107 — In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm: account XFRMA_IF_ID in aevent size calculatio…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+xfrm: account XFRMA_IF_ID in aevent size calculation
+
+xfrm_get_ae() allocates the reply skb with xfrm_aevent_msgsize(), then
+build_aevent() appends attributes including XFRMA_IF_ID when x->if_id is
+set.
+
+xfrm_aevent_msgsize() does …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/2c41283d94af943a05f7f2cc1a01f0c872f3cf43" target="_blank" class="ref-link">2c41283d94af943a05f7f2cc1a01f0c872f3cf43</a> <a href="https://git.kernel.org/stable/c/58e5735d1a5373652f405a0c16e54ac04aaab0ad" target="_blank" class="ref-link">58e5735d1a5373652f405a0c16e54ac04aaab0ad</a> <a href="https://git.kernel.org/stable/c/7081d46d32312f1a31f0e0e99c6835a394037599" target="_blank" class="ref-link">7081d46d32312f1a31f0e0e99c6835a394037599</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="linux">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-linux">🐧 Linux</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-06</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-43108" target="_blank">CVE-2026-43108 — In the Linux kernel, the following vulnerability has been resolved:
+
+soc: qcom: pd-mapper: Fix element length in servreg…</a>
+        </div>
+        <div class="card-desc">In the Linux kernel, the following vulnerability has been resolved:
+
+soc: qcom: pd-mapper: Fix element length in servreg_loc_pfr_req_ei
+
+It looks element length declared in servreg_loc_pfr_req_ei for reason
+not matching servreg_loc_pfr_req's reason field due which we could
+observe decoding error on …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://git.kernel.org/stable/c/641f6fda143b879da1515f821ee475073678cf2a" target="_blank" class="ref-link">641f6fda143b879da1515f821ee475073678cf2a</a> <a href="https://git.kernel.org/stable/c/7d75145672cf2ec7c5417e3243af72c48314f7bb" target="_blank" class="ref-link">7d75145672cf2ec7c5417e3243af72c48314f7bb</a> <a href="https://git.kernel.org/stable/c/c93ca7c5a72e23a83a0b96f7f5c41a7a72f1dc47" target="_blank" class="ref-link">c93ca7c5a72e23a83a0b96f7f5c41a7a72f1dc47</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="kubernetes">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-kubernetes">☸️ Kubernetes</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-09</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-42183" target="_blank">CVE-2026-42183 — Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From ve…</a>
+        </div>
+        <div class="card-desc">Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From version 4.0.0 to before version 4.0.5, a nil pointer dereference in server/auth/gatekeeper.go rbacAuthorization() causes a panic (denial of service) for SSO users whose claims match …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://github.com/argoproj/argo-workflows/commit/c4cc17d0c034fa9a9cc01ef1af6c8016c93071d4" target="_blank" class="ref-link">c4cc17d0c034fa9a9cc01ef1af6c8016c93071d4</a> <a href="https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5" target="_blank" class="ref-link">v4.0.5</a> <a href="https://github.com/argoproj/argo-workflows/security/advisories/GHSA-p4gq-3vxj-f4jq" target="_blank" class="ref-link">GHSA-p4gq-3vxj-f4jq</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="kubernetes">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-kubernetes">☸️ Kubernetes</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-09</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-42294" target="_blank">CVE-2026-42294 — Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior t…</a>
+        </div>
+        <div class="card-desc">Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior to versions 3.7.14 and 4.0.5, the Webhook Interceptor loads the entire request body into memory before authenticating the request or verifying its signature. This occurs on the /api…</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://github.com/argoproj/argo-workflows/commit/7abb4de6c3599e2d5d960ba4d5de4cf1df109965" target="_blank" class="ref-link">7abb4de6c3599e2d5d960ba4d5de4cf1df109965</a> <a href="https://github.com/argoproj/argo-workflows/releases/tag/v3.7.14" target="_blank" class="ref-link">v3.7.14</a> <a href="https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5" target="_blank" class="ref-link">v4.0.5</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="kubernetes">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-kubernetes">☸️ Kubernetes</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-09</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-42295" target="_blank">CVE-2026-42295 — Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From ve…</a>
+        </div>
+        <div class="card-desc">Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From version 4.0.0 to before version 4.0.5, the workflow executor logs all artifact repository credentials (S3 access keys, secret keys, GCS service account keys, Azure account keys, Git …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5" target="_blank" class="ref-link">v4.0.5</a> <a href="https://github.com/argoproj/argo-workflows/security/advisories/GHSA-7vf8-2cr6-54mf" target="_blank" class="ref-link">GHSA-7vf8-2cr6-54mf</a> </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" data-severity="UNKNOWN" data-cats="kubernetes">
+      <div class="card-stripe" style="background:#888888"></div>
+      <div class="card-body">
+        <div class="card-header">
+          <div class="card-left">
+            <span class="badge" style="background:#888888">UNKNOWN</span>
+            <span class="pill pill-kubernetes">☸️ Kubernetes</span>
+          </div>
+          <div class="card-meta">
+            <span class="source-tag">NVD</span>
+            <span class="date-tag">📅 2026-05-09</span>
+          </div>
+        </div>
+        <div class="card-title">
+          <a href="https://nvd.nist.gov/vuln/detail/CVE-2026-42297" target="_blank">CVE-2026-42297 — Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From ve…</a>
+        </div>
+        <div class="card-desc">Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From version 4.0.0 to before version 4.0.5, the Sync Service's ConfigMap-backed provider (server/sync/sync_cm.go) performs zero authorization checks on all CRUD operations (create, read, …</div>
+        <div class="card-footer">
+          <span class="score-na">N/A</span>
+          <div class="refs"><a href="https://github.com/argoproj/argo-workflows/commit/09fff05e0830c14a5e36cc40597ad84881db1ab6" target="_blank" class="ref-link">09fff05e0830c14a5e36cc40597ad84881db1ab6</a> <a href="https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5" target="_blank" class="ref-link">v4.0.5</a> <a href="https://github.com/argoproj/argo-workflows/security/advisories/GHSA-xchc-cqwg-g76q" target="_blank" class="ref-link">GHSA-xchc-cqwg-g76q</a> </div>
+        </div>
+      </div>
+    </div>
+</div>
+
+<div class="empty" id="empty-state" style="display:none">No vulnerabilities match your filters.</div>
+
+<div class="footer">
+  Auto-generated by vuln-report · Data from NVD, Kubernetes Security Committee, Red Hat
+</div>
+
+<script>
+  let activeSev = 'ALL';
+  let activeCat = null;
+  let searchQ   = '';
+
+  const cards = Array.from(document.querySelectorAll('.card'));
+
+  function applyFilters() {
+    let visible = 0;
+    cards.forEach(c => {
+      const sev  = c.dataset.severity;
+      const cats = c.dataset.cats.split(' ');
+      const text = c.innerText.toLowerCase();
+      const sevOk  = activeSev === 'ALL' || sev === activeSev;
+      const catOk  = !activeCat || cats.includes(activeCat);
+      const searchOk = !searchQ || text.includes(searchQ);
+      const show = sevOk && catOk && searchOk;
+      c.style.display = show ? '' : 'none';
+      if (show) visible++;
+    });
+    document.getElementById('count-label').textContent = visible + ' entries';
+    document.getElementById('empty-state').style.display = visible === 0 ? '' : 'none';
+  }
+
+  // Severity filter buttons
+  document.querySelectorAll('.filter-btn[data-sev]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('.filter-btn[data-sev]').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      activeSev = btn.dataset.sev;
+      applyFilters();
+    });
+  });
+
+  // Stat boxes (severity)
+  document.querySelectorAll('.stat-box[data-filter-sev]').forEach(box => {
+    box.addEventListener('click', () => {
+      const sev = box.dataset.filterSev;
+      activeSev = activeSev === sev ? 'ALL' : sev;
+      document.querySelectorAll('.stat-box').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.filter-btn[data-sev]').forEach(b => b.classList.remove('active'));
+      if (activeSev !== 'ALL') box.classList.add('active');
+      else document.querySelector('.filter-btn[data-sev="ALL"]').classList.add('active');
+      applyFilters();
+    });
+  });
+
+  // Cat boxes
+  document.querySelectorAll('.cat-box[data-filter-cat]').forEach(box => {
+    box.addEventListener('click', () => {
+      const cat = box.dataset.filterCat;
+      activeCat = activeCat === cat ? null : cat;
+      document.querySelectorAll('.cat-box').forEach(b => b.classList.remove('active'));
+      if (activeCat) box.classList.add('active');
+      applyFilters();
+    });
+  });
+
+  // Search
+  document.getElementById('search').addEventListener('input', e => {
+    searchQ = e.target.value.toLowerCase().trim();
+    applyFilters();
+  });
+</script>
+</body>
+</html>

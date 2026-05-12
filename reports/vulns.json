@@ -1,0 +1,1007 @@
+{
+  "generated": "2026-05-11T13:18:45.978878+00:00",
+  "days_back": 7,
+  "count": 56,
+  "vulnerabilities": [
+    {
+      "id": "CVE-2026-43067",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: handle wraparound when searching for blocks f\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: handle wraparound when searching for blocks for indirect mapped blocks\n\nCommit 4865c768b563 (\"ext4: always allocate blocks only from groups\ninode can use\") restricts what blocks will be allocated for indirect\nblock based files to block numbers that fit within 32-bit block\nnumbers.\n\nHowever, when using a review bot running on the latest Gemini LLM to\ncheck this commit when backporting into an LTS based kernel, it raised\nthis concern:\n\n   If ac->ac_g_ex.fe_group is >= ngroups (for instance, if the goal\n   group was populated via stream allocation from s_mb_last_groups),\n   then start will be >= ngroups.\n\n   Does this allow allocating blocks beyond the 32-bit limit for\n   indirect block mapped files? The commit message mentions that\n   ext4_mb_scan_groups_linear() takes care to not select unsupported\n   groups. However, its loop uses group = *start, and the very first\n   iteration will call ext4_mb_scan_group() with this unsupported\n   group because next_linear_group() is only called at the end of the\n   iteration.\n\nAfter reviewing the code paths involved and considering the LLM\nreview, I determined that this can happen when there is a file system\nwhere some files/directories are extent-mapped and others are\nindirect-block mapped.  To address this, add a safety clamp in\next4_mb_scan_groups().",
+      "severity": "CRITICAL",
+      "score": 9.8,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43067",
+      "refs": [
+        "https://git.kernel.org/stable/c/12624c5b724a81e14e532972b40d863b0de3b7d1",
+        "https://git.kernel.org/stable/c/2a368ccddfc492a0aa951e2caef2985f20e96503",
+        "https://git.kernel.org/stable/c/4bec4a498ce86314d470ae6144120461f2138c29"
+      ]
+    },
+    {
+      "id": "CVE-2026-43071",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ndcache: Limit the minimal number of bucket to two\n\n\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ndcache: Limit the minimal number of bucket to two\n\nThere is an OOB read problem on dentry_hashtable when user sets\n'dhash_entries=1':\n  BUG: unable to handle page fault for address: ffff888b30b774b0\n  #PF: supervisor read access in kernel mode\n  #PF: error_code(0x0000) - not-present page\n  Oops: Oops: 0000 [#1] SMP PTI\n  RIP: 0010:__d_lookup+0x56/0x120\n   Call Trace:\n    d_lookup.cold+0x16/0x5d\n    lookup_dcache+0x27/0xf0\n    lookup_one_qstr_excl+0x2a/0x180\n    start_dirop+0x55/0xa0\n    simple_start_creating+0x8d/0xa0\n    debugfs_start_creating+0x8c/0x180\n    debugfs_create_dir+0x1d/0x1c0\n    pinctrl_init+0x6d/0x140\n    do_one_initcall+0x6d/0x3d0\n    kernel_init_freeable+0x39f/0x460\n    kernel_init+0x2a/0x260\n\nThere will be only one bucket in dentry_hashtable when dhash_entries is\nset as one, and d_hash_shift is calculated as 32 by dcache_init(). Then,\nfollowing process will access more than one buckets(which memory region\nis not allocated) in dentry_hashtable:\n d_lookup\n  b = d_hash(hash)\n    dentry_hashtable + ((u32)hashlen >> d_hash_shift)\n    // The C standard defines the behavior of right shift amounts\n    // exceeding the bit width of the operand as undefined. The\n    // result of '(u32)hashlen >> d_hash_shift' becomes 'hashlen',\n    // so 'b' will point to an unallocated memory region.\n  hlist_bl_for_each_entry_rcu(b)\n   hlist_bl_first_rcu(head)\n    h->first  // read OOB!\n\nFix it by limiting the minimal number of dentry_hashtable bucket to two,\nso that 'd_hash_shift' won't exceeds the bit width of type u32.",
+      "severity": "CRITICAL",
+      "score": 9.1,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43071",
+      "refs": [
+        "https://git.kernel.org/stable/c/277cedabb0ab86baae83fa58218be13c6d3e5526",
+        "https://git.kernel.org/stable/c/426ef05e82ee52c8d0e95fc0808b7383d8352d73",
+        "https://git.kernel.org/stable/c/5718df131ab78897a9dd1f2e71c3ba732d4392af"
+      ]
+    },
+    {
+      "id": "CVE-2026-43083",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: ioam6: fix OOB and missing lock\n\nWhen trace->t\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: ioam6: fix OOB and missing lock\n\nWhen trace->type.bit6 is set:\n\n    if (trace->type.bit6) {\n        ...\n        queue = skb_get_tx_queue(dev, skb);\n        qdisc = rcu_dereference(queue->qdisc);\n\nThis code can lead to an out-of-bounds access of the dev->_tx[] array\nwhen is_input is true. In such a case, the packet is on the RX path and\nskb->queue_mapping contains the RX queue index of the ingress device. If\nthe ingress device has more RX queues than the egress device (dev) has\nTX queues, skb_get_queue_mapping(skb) will exceed dev->num_tx_queues.\nAdd a check to avoid this situation since skb_get_tx_queue() does not\nclamp the index. This issue has also revealed that per queue visibility\ncannot be accurate and will be replaced later as a new feature.\n\nWhile at it, add missing lock around qdisc_qstats_qlen_backlog(). The\nfunction __ioam6_fill_trace_data() is called from both softirq and\nprocess contexts, hence the use of spin_lock_bh() here.",
+      "severity": "CRITICAL",
+      "score": 9.1,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43083",
+      "refs": [
+        "https://git.kernel.org/stable/c/6d1d9ed9b409e0662241e3d245d574a18f643494",
+        "https://git.kernel.org/stable/c/95a1334748c95dd15546056280ade0c4b8dd7b78",
+        "https://git.kernel.org/stable/c/b30b1675aa2bcf0491fd3830b051df4e08a7c8ca"
+      ]
+    },
+    {
+      "id": "CVE-2026-42880",
+      "title": "Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. From versions 3.2.0 to before 3.2.11 and 3.3.0\u2026",
+      "description": "Argo CD is a declarative, GitOps continuous delivery tool for Kubernetes. From versions 3.2.0 to before 3.2.11 and 3.3.0 to before 3.3.9, there is a missing authorization and data-masking gap in Argo CD's ServerSideDiff endpoint that allows an attacker with read-only access to extract plaintext Kubernetes Secret data from etcd via the Kubernetes API server's Server-Side Apply dry-run mechanism. This issue has been patched in versions 3.2.11 and 3.3.9.",
+      "severity": "CRITICAL",
+      "score": 9.6,
+      "published": "2026-05-07",
+      "source": "NVD",
+      "categories": [
+        "kubernetes"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-42880",
+      "refs": [
+        "https://github.com/argoproj/argo-cd/security/advisories/GHSA-3v3m-wc6v-x4x3",
+        "https://github.com/argoproj/argo-cd/security/advisories/GHSA-3v3m-wc6v-x4x3"
+      ]
+    },
+    {
+      "id": "CVE-2026-43060",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnetfilter: nft_ct: drop pending enqueued packets on\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnetfilter: nft_ct: drop pending enqueued packets on removal\n\nPackets sitting in nfqueue might hold a reference to:\n\n- templates that specify the conntrack zone, because a percpu area is\n  used and module removal is possible.\n- conntrack timeout policies and helper, where object removal leave\n  a stale reference.\n\nSince these objects can just go away, drop enqueued packets to avoid\nstale reference to them.\n\nIf there is a need for finer grain removal, this logic can be revisited\nto make selective packet drop upon dependencies.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43060",
+      "refs": [
+        "https://git.kernel.org/stable/c/36eae0956f659e48d5366d9b083d9417f3263ddc",
+        "https://git.kernel.org/stable/c/3da0b946835f33bf36b459ead764c61a761e689b",
+        "https://git.kernel.org/stable/c/6802ff8beceb9c4254318e81c1395720438f2cc2"
+      ]
+    },
+    {
+      "id": "CVE-2026-43062",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nBluetooth: L2CAP: Fix type confusion in l2cap_ecred\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nBluetooth: L2CAP: Fix type confusion in l2cap_ecred_reconf_rsp()\n\nl2cap_ecred_reconf_rsp() casts the incoming data to struct\nl2cap_ecred_conn_rsp (the ECRED *connection* response, 8 bytes with\nresult at offset 6) instead of struct l2cap_ecred_reconf_rsp (2 bytes\nwith result at offset 0).\n\nThis causes two problems:\n\n - The sizeof(*rsp) length check requires 8 bytes instead of the\n   correct 2, so valid L2CAP_ECRED_RECONF_RSP packets are rejected\n   with -EPROTO.\n\n - rsp->result reads from offset 6 instead of offset 0, returning\n   wrong data when the packet is large enough to pass the check.\n\nFix by using the correct type.  Also pass the already byte-swapped\nresult variable to BT_DBG instead of the raw __le16 field.",
+      "severity": "HIGH",
+      "score": 7.1,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43062",
+      "refs": [
+        "https://git.kernel.org/stable/c/111f74547eee8cfedfb854284e80f35c8a491186",
+        "https://git.kernel.org/stable/c/15145675690cab2de1056e7ed68e59cbd0452529",
+        "https://git.kernel.org/stable/c/21d3ba696918d6373233aac0b9d51fcabdedddc0"
+      ]
+    },
+    {
+      "id": "CVE-2026-43063",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfs: don't irele after failing to iget in xfs_attri\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfs: don't irele after failing to iget in xfs_attri_recover_work\n\nxlog_recovery_iget* never set @ip to a valid pointer if they return\nan error, so this irele will walk off a dangling pointer.  Fix that.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43063",
+      "refs": [
+        "https://git.kernel.org/stable/c/40082d08b638485cbaa543dc8087a3d1844d6f08",
+        "https://git.kernel.org/stable/c/70685c291ef82269180758130394ecdc4496b52c",
+        "https://git.kernel.org/stable/c/a1a5df1038f0b3c560d204270373621a4e622808"
+      ]
+    },
+    {
+      "id": "CVE-2026-43070",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nbpf: Reset register ID for BPF_END value tracking\n\n\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nbpf: Reset register ID for BPF_END value tracking\n\nWhen a register undergoes a BPF_END (byte swap) operation, its scalar\nvalue is mutated in-place. If this register previously shared a scalar ID\nwith another register (e.g., after an `r1 = r0` assignment), this tie must\nbe broken.\n\nCurrently, the verifier misses resetting `dst_reg->id` to 0 for BPF_END.\nConsequently, if a conditional jump checks the swapped register, the\nverifier incorrectly propagates the learned bounds to the linked register,\nleading to false confidence in the linked register's value and potentially\nallowing out-of-bounds memory accesses.\n\nFix this by explicitly resetting `dst_reg->id` to 0 in the BPF_END case\nto break the scalar tie, similar to how BPF_NEG handles it via\n`__mark_reg_known`.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43070",
+      "refs": [
+        "https://git.kernel.org/stable/c/0d15c3611a2cc5d08993545d4032055ae10ae2c1",
+        "https://git.kernel.org/stable/c/a17443af874229408ce6b78e2c8a2b5adeb4b7d8",
+        "https://git.kernel.org/stable/c/a3125bc01884431d30d731461634c8295b6f0529"
+      ]
+    },
+    {
+      "id": "CVE-2026-43074",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\neventpoll: defer struct eventpoll free to RCU grace\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\neventpoll: defer struct eventpoll free to RCU grace period\n\nIn certain situations, ep_free() in eventpoll.c will kfree the epi->ep\neventpoll struct while it still being used by another concurrent thread.\nDefer the kfree() to an RCU callback to prevent UAF.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43074",
+      "refs": [
+        "https://git.kernel.org/stable/c/07712db80857d5d09ae08f3df85a708ecfc3b61f",
+        "https://git.kernel.org/stable/c/5b1173b165421561db29f30afc7e97d940a398a9",
+        "https://git.kernel.org/stable/c/7e8083f5eeedab0f460063b9c2c14c9a4e71a427"
+      ]
+    },
+    {
+      "id": "CVE-2026-43075",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nocfs2: fix out-of-bounds write in ocfs2_write_end_i\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nocfs2: fix out-of-bounds write in ocfs2_write_end_inline\n\nKASAN reports a use-after-free write of 4086 bytes in\nocfs2_write_end_inline, called from ocfs2_write_end_nolock during a\ncopy_file_range splice fallback on a corrupted ocfs2 filesystem mounted on\na loop device.  The actual bug is an out-of-bounds write past the inode\nblock buffer, not a true use-after-free.  The write overflows into an\nadjacent freed page, which KASAN reports as UAF.\n\nThe root cause is that ocfs2_try_to_write_inline_data trusts the on-disk\nid_count field to determine whether a write fits in inline data.  On a\ncorrupted filesystem, id_count can exceed the physical maximum inline data\ncapacity, causing writes to overflow the inode block buffer.\n\nCall trace (crash path):\n\n   vfs_copy_file_range (fs/read_write.c:1634)\n     do_splice_direct\n       splice_direct_to_actor\n         iter_file_splice_write\n           ocfs2_file_write_iter\n             generic_perform_write\n               ocfs2_write_end\n                 ocfs2_write_end_nolock (fs/ocfs2/aops.c:1949)\n                   ocfs2_write_end_inline (fs/ocfs2/aops.c:1915)\n                     memcpy_from_folio     <-- KASAN: write OOB\n\nSo add id_count upper bound check in ocfs2_validate_inode_block() to\nalongside the existing i_size check to fix it.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43075",
+      "refs": [
+        "https://git.kernel.org/stable/c/0c1af902223b6fcedb60904ca0b551254686c7b9",
+        "https://git.kernel.org/stable/c/69d3c69ade1e4285ab4ca48fe7acee0767e65604",
+        "https://git.kernel.org/stable/c/7bc5da4842bed3252d26e742213741a4d0ac1b14"
+      ]
+    },
+    {
+      "id": "CVE-2026-43076",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nocfs2: validate inline data i_size during inode rea\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nocfs2: validate inline data i_size during inode read\n\nWhen reading an inode from disk, ocfs2_validate_inode_block() performs\nvarious sanity checks but does not validate the size of inline data.  If\nthe filesystem is corrupted, an inode's i_size can exceed the actual\ninline data capacity (id_count).\n\nThis causes ocfs2_dir_foreach_blk_id() to iterate beyond the inline data\nbuffer, triggering a use-after-free when accessing directory entries from\nfreed memory.\n\nIn the syzbot report:\n  - i_size was 1099511627576 bytes (~1TB)\n  - Actual inline data capacity (id_count) is typically <256 bytes\n  - A garbage rec_len (54648) caused ctx->pos to jump out of bounds\n  - This triggered a UAF in ocfs2_check_dir_entry()\n\nFix by adding a validation check in ocfs2_validate_inode_block() to ensure\ninodes with inline data have i_size <= id_count.  This catches the\ncorruption early during inode read and prevents all downstream code from\noperating on invalid data.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43076",
+      "refs": [
+        "https://git.kernel.org/stable/c/1524af3685b35feac76662cc551cbc37bd14775f",
+        "https://git.kernel.org/stable/c/37f074e65f24f10f8d8df224a572e4cb9e6faf63",
+        "https://git.kernel.org/stable/c/77d0295725109d77f5854ef5b58c0d06c08168cc"
+      ]
+    },
+    {
+      "id": "CVE-2026-43078",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ncrypto: af_alg - Fix page reassignment overflow in \u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ncrypto: af_alg - Fix page reassignment overflow in af_alg_pull_tsgl\n\nWhen page reassignment was added to af_alg_pull_tsgl the original\nloop wasn't updated so it may try to reassign one more page than\nnecessary.\n\nAdd the check to the reassignment so that this does not happen.\n\nAlso update the comment which still refers to the obsolete offset\nargument.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43078",
+      "refs": [
+        "https://git.kernel.org/stable/c/2b781d1d4f933990318bcc5c68fb75a717379e42",
+        "https://git.kernel.org/stable/c/31d00156e50ecad37f2cb6cbf04aaa9a260505ef",
+        "https://git.kernel.org/stable/c/710a4ce5d7afd9fe082c75dec282ab4a11c0fe71"
+      ]
+    },
+    {
+      "id": "CVE-2026-43084",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnetfilter: nfnetlink_queue: make hash table per que\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnetfilter: nfnetlink_queue: make hash table per queue\n\nSharing a global hash table among all queues is tempting, but\nit can cause crash:\n\nBUG: KASAN: slab-use-after-free in nfqnl_recv_verdict+0x11ac/0x15e0 [nfnetlink_queue]\n[..]\n nfqnl_recv_verdict+0x11ac/0x15e0 [nfnetlink_queue]\n nfnetlink_rcv_msg+0x46a/0x930\n kmem_cache_alloc_node_noprof+0x11e/0x450\n\nstruct nf_queue_entry is freed via kfree, but parallel cpu can still\nencounter such an nf_queue_entry when walking the list.\n\nAlternative fix is to free the nf_queue_entry via kfree_rcu() instead,\nbut as we have to alloc/free for each skb this will cause more mem\npressure.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43084",
+      "refs": [
+        "https://git.kernel.org/stable/c/22730cb96093b5be0609063bbb1923dbecd61252",
+        "https://git.kernel.org/stable/c/41e3652a178cb0eecd48e0e6e27fbb73a004046a",
+        "https://git.kernel.org/stable/c/936206e3f6ff411581e615e930263d6f8b78df9d"
+      ]
+    },
+    {
+      "id": "CVE-2026-43091",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm: Wait for RCU readers during policy netns exit\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm: Wait for RCU readers during policy netns exit\n\nxfrm_policy_fini() frees the policy_bydst hash tables after flushing the\npolicy work items and deleting all policies, but it does not wait for\nconcurrent RCU readers to leave their read-side critical sections first.\n\nThe policy_bydst tables are published via rcu_assign_pointer() and are\nlooked up through rcu_dereference_check(), so netns teardown must also\nwait for an RCU grace period before freeing the table memory.\n\nFix this by adding synchronize_rcu() before freeing the policy hash tables.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43091",
+      "refs": [
+        "https://git.kernel.org/stable/c/069daad4f2ae9c5c108131995529d5f02392c446",
+        "https://git.kernel.org/stable/c/33a3149dd81a1e2f52b80ee1e0fc380b39f3d028",
+        "https://git.kernel.org/stable/c/3733fce2871c9bca9dd18a1a23b1432ea215a094"
+      ]
+    },
+    {
+      "id": "CVE-2026-43093",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxsk: tighten UMEM headroom validation to account fo\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxsk: tighten UMEM headroom validation to account for tailroom and min frame\n\nThe current headroom validation in xdp_umem_reg() could leave us with\ninsufficient space dedicated to even receive minimum-sized ethernet\nframe. Furthermore if multi-buffer would come to play then\nskb_shared_info stored at the end of XSK frame would be corrupted.\n\nHW typically works with 128-aligned sizes so let us provide this value\nas bare minimum.\n\nMulti-buffer setting is known later in the configuration process so\nbesides accounting for 128 bytes, let us also take care of tailroom space\nupfront.",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43093",
+      "refs": [
+        "https://git.kernel.org/stable/c/0ec4d3f6e6934deb843b561ae048cd17218e5ad1",
+        "https://git.kernel.org/stable/c/6523bc1b40e69301f24c14338b762af4739d6d39",
+        "https://git.kernel.org/stable/c/9ea6ba4f3195dcba6e8b3e7b2e748593b7cafb12"
+      ]
+    },
+    {
+      "id": "CVE-2026-43099",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nipv4: icmp: fix null-ptr-deref in icmp_build_probe(\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nipv4: icmp: fix null-ptr-deref in icmp_build_probe()\n\nipv6_stub->ipv6_dev_find() may return ERR_PTR(-EAFNOSUPPORT) when the\nIPv6 stack is not active (CONFIG_IPV6=m and not loaded), and passing\nthis error pointer to dev_hold() will cause a kernel crash with\nnull-ptr-deref.\n\nInstead, silently discard the request. RFC 8335 does not appear to\ndefine a specific response for the case where an IPv6 interface\nidentifier is syntactically valid but the implementation cannot perform\nthe lookup at runtime, and silently dropping the request may safer than\nmisreporting \"No Such Interface\".",
+      "severity": "HIGH",
+      "score": 7.5,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43099",
+      "refs": [
+        "https://git.kernel.org/stable/c/47a8bf52156ac7e7a581eca31c1f964ba4258d4d",
+        "https://git.kernel.org/stable/c/5b9911582d441f72fe6ccb15ffe3303bbc07f6f5",
+        "https://git.kernel.org/stable/c/6be325206850a0891896d38bcf83a09d8b54ec48"
+      ]
+    },
+    {
+      "id": "CVE-2026-43101",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nipv6: ioam: fix potential NULL dereferences in __io\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nipv6: ioam: fix potential NULL dereferences in __ioam6_fill_trace_data()\n\nWe need to check __in6_dev_get() for possible NULL value, as\nsuggested by Yiming Qian.\n\nAlso add skb_dst_dev_rcu() instead of skb_dst_dev(),\nand two missing READ_ONCE().\n\nNote that @dev can't be NULL.",
+      "severity": "HIGH",
+      "score": 7.5,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43101",
+      "refs": [
+        "https://git.kernel.org/stable/c/3719c234fa94c37c955b1ecd3742ef280ec135e6",
+        "https://git.kernel.org/stable/c/4198aab6f000b4febb18ea820fea20634dd789c7",
+        "https://git.kernel.org/stable/c/4e65a8b8daa18d63255ec58964dd192c7fdd9f8b"
+      ]
+    },
+    {
+      "id": "CVE-2026-43106",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ncachefiles: fix incorrect dentry refcount in cachef\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ncachefiles: fix incorrect dentry refcount in cachefiles_cull()\n\nThe patch mentioned below changed cachefiles_bury_object() to expect 2\nreferences to the 'rep' dentry.  Three of the callers were changed to\nuse start_removing_dentry() which takes an extra reference so in those\ncases the call gets the expected references.\n\nHowever there is another call to cachefiles_bury_object() in\ncachefiles_cull() which did not need to be changed to use\nstart_removing_dentry() and so was not properly considered.\nIt still passed the dentry with just one reference so the net result is\nthat a reference is lost.\n\nTo meet the expectations of cachefiles_bury_object(), cachefiles_cull()\nmust take an extra reference before the call.  It will be dropped by\ncachefiles_bury_object().",
+      "severity": "HIGH",
+      "score": 7.8,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43106",
+      "refs": [
+        "https://git.kernel.org/stable/c/1635c2acdde86c4f555b627aec873c8677c421ed",
+        "https://git.kernel.org/stable/c/6577df7dc7a7de128442b6192c7a32195c923480"
+      ]
+    },
+    {
+      "id": "CVE-2026-42296",
+      "title": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior t\u2026",
+      "description": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior to versions 3.7.14 and 4.0.5, a user with create Workflow permission can bypass templateReferencing: Strict to get host network access, switch service accounts, override pod security context, add tolerations to schedule on control-plane nodes, or enable SA token mounting. This defeats the stated purpose of the feature. The practical impact depends on what Kubernetes-level controls are in place. Clusters with PodSecurity admission or OPA/Gatekeeper would independently block some of these (like hostNetwork). Clusters that rely on Argo's Strict mode as the primary enforcement layer are fully exposed. This issue has been patched in versions 3.7.14 and 4.0.5.",
+      "severity": "HIGH",
+      "score": 8.1,
+      "published": "2026-05-09",
+      "source": "NVD",
+      "categories": [
+        "kubernetes"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-42296",
+      "refs": [
+        "https://github.com/argoproj/argo-workflows/commit/534f4ff1cbd86908e8ff76d97d553ad5a49a950d",
+        "https://github.com/argoproj/argo-workflows/releases/tag/v3.7.14",
+        "https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5"
+      ]
+    },
+    {
+      "id": "CVE-2026-43059",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nBluetooth: MGMT: Fix list corruption and UAF in com\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nBluetooth: MGMT: Fix list corruption and UAF in command complete handlers\n\nCommit 302a1f674c00 (\"Bluetooth: MGMT: Fix possible UAFs\") introduced\nmgmt_pending_valid(), which not only validates the pending command but\nalso unlinks it from the pending list if it is valid. This change in\nsemantics requires updates to several completion handlers to avoid list\ncorruption and memory safety issues.\n\nThis patch addresses two left-over issues from the aforementioned rework:\n\n1. In mgmt_add_adv_patterns_monitor_complete(), mgmt_pending_remove()\nis replaced with mgmt_pending_free() in the success path. Since\nmgmt_pending_valid() already unlinks the command at the beginning of\nthe function, calling mgmt_pending_remove() leads to a double list_del()\nand subsequent list corruption/kernel panic.\n\n2. In set_mesh_complete(), the use of mgmt_pending_foreach() in the error\npath is removed. Since the current command is already unlinked by\nmgmt_pending_valid(), this foreach loop would incorrectly target other\npending mesh commands, potentially freeing them while they are still being\nprocessed concurrently (leading to UAFs). The redundant mgmt_cmd_status()\nis also simplified to use cmd->opcode directly.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43059",
+      "refs": [
+        "https://git.kernel.org/stable/c/02023ff760cc104a5d86a82ef5b8dd89098ad78d",
+        "https://git.kernel.org/stable/c/17f89341cb4281d1da0e2fb0de5406ab7c4e25ef",
+        "https://git.kernel.org/stable/c/695b45b2262fcb5e71bed1175aad59c72f92aa78"
+      ]
+    },
+    {
+      "id": "CVE-2026-43061",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nserial: 8250: Fix TX deadlock when using DMA\n\n`dmae\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nserial: 8250: Fix TX deadlock when using DMA\n\n`dmaengine_terminate_async` does not guarantee that the\n`__dma_tx_complete` callback will run. The callback is currently the\nonly place where `dma->tx_running` gets cleared. If the transaction is\ncanceled and the callback never runs, then `dma->tx_running` will never\nget cleared and we will never schedule new TX DMA transactions again.\n\nThis change makes it so we clear `dma->tx_running` after we terminate\nthe DMA transaction. This is \"safe\" because `serial8250_tx_dma_flush`\nis holding the UART port lock. The first thing the callback does is also\ngrab the UART port lock, so access to `dma->tx_running` is serialized.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43061",
+      "refs": [
+        "https://git.kernel.org/stable/c/2a72403b985aea6b4aac3171830492f9a387f9e1",
+        "https://git.kernel.org/stable/c/5f6b17562f03fc65c7d3474ef8f1959b19d1ca41",
+        "https://git.kernel.org/stable/c/79a19bd936bb35f56ef0ccab1b3b59ebce8c762d"
+      ]
+    },
+    {
+      "id": "CVE-2026-43064",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ndmaengine: idxd: Fix not releasing workqueue on .re\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ndmaengine: idxd: Fix not releasing workqueue on .release()\n\nThe workqueue associated with an DSA/IAA device is not released when\nthe object is freed.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43064",
+      "refs": [
+        "https://git.kernel.org/stable/c/2bb9e9e93adff9cc8a138ae9a3a8d59b3452272e",
+        "https://git.kernel.org/stable/c/3d33de353b1ff9023d5ec73b9becf80ea87af695",
+        "https://git.kernel.org/stable/c/958e96533ddbd1edd127feb7624a7eed0cc379dc"
+      ]
+    },
+    {
+      "id": "CVE-2026-43065",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: always drain queued discard work in ext4_mb_r\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: always drain queued discard work in ext4_mb_release()\n\nWhile reviewing recent ext4 patch[1], Sashiko raised the following\nconcern[2]:\n\n> If the filesystem is initially mounted with the discard option,\n> deleting files will populate sbi->s_discard_list and queue\n> s_discard_work. If it is then remounted with nodiscard, the\n> EXT4_MOUNT_DISCARD flag is cleared, but the pending s_discard_work is\n> neither cancelled nor flushed.\n\n[1] https://lore.kernel.org/r/20260319094545.19291-1-qiang.zhang@linux.dev/\n[2] https://sashiko.dev/#/patchset/20260319094545.19291-1-qiang.zhang%40linux.dev\n\nThe concern was valid, but it had nothing to do with the patch[1].\nOne of the problems with Sashiko in its current (early) form is that\nit will detect pre-existing issues and report it as a problem with the\npatch that it is reviewing.\n\nIn practice, it would be hard to hit deliberately (unless you are a\nmalicious syzkaller fuzzer), since it would involve mounting the file\nsystem with -o discard, and then deleting a large number of files,\nremounting the file system with -o nodiscard, and then immediately\nunmounting the file system before the queued discard work has a change\nto drain on its own.\n\nFix it because it's a real bug, and to avoid Sashiko from raising this\nconcern when analyzing future patches to mballoc.c.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43065",
+      "refs": [
+        "https://git.kernel.org/stable/c/1c82f863f090ab899085bdfade073313384b514b",
+        "https://git.kernel.org/stable/c/812b6a7cd3e7f3a3e8a24db85bc6313c26cb1098",
+        "https://git.kernel.org/stable/c/9b4d9dda6a71ad3425c8109d27c4c6bfb9da97b8"
+      ]
+    },
+    {
+      "id": "CVE-2026-43066",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: fix iloc.bh leak in ext4_fc_replay_inode() er\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: fix iloc.bh leak in ext4_fc_replay_inode() error paths\n\nDuring code review, Joseph found that ext4_fc_replay_inode() calls\next4_get_fc_inode_loc() to get the inode location, which holds a\nreference to iloc.bh that must be released via brelse().\n\nHowever, several error paths jump to the 'out' label without\nreleasing iloc.bh:\n\n - ext4_handle_dirty_metadata() failure\n - sync_dirty_buffer() failure\n - ext4_mark_inode_used() failure\n - ext4_iget() failure\n\nFix this by introducing an 'out_brelse' label placed just before\nthe existing 'out' label to ensure iloc.bh is always released.\n\nAdditionally, make ext4_fc_replay_inode() propagate errors\nproperly instead of always returning 0.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43066",
+      "refs": [
+        "https://git.kernel.org/stable/c/0892f12cd49fde5d5db68137923db107f894f3a3",
+        "https://git.kernel.org/stable/c/19782b4c793b49a6aa4abbb307ddff3610009d21",
+        "https://git.kernel.org/stable/c/5a63033696e60b5d70816f1d119645ac5b0b0a03"
+      ]
+    },
+    {
+      "id": "CVE-2026-43068",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: avoid allocate block from corrupted group in \u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\next4: avoid allocate block from corrupted group in ext4_mb_find_by_goal()\n\nThere's issue as follows:\n...\nEXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 206 at logical offset 0 with max blocks 1 with error 117\nEXT4-fs (mmcblk0p1): This should not happen!! Data will be lost\n\nEXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 206 at logical offset 0 with max blocks 1 with error 117\nEXT4-fs (mmcblk0p1): This should not happen!! Data will be lost\n\nEXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 206 at logical offset 0 with max blocks 1 with error 117\nEXT4-fs (mmcblk0p1): This should not happen!! Data will be lost\n\nEXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 206 at logical offset 0 with max blocks 1 with error 117\nEXT4-fs (mmcblk0p1): This should not happen!! Data will be lost\n\nEXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 2243 at logical offset 0 with max blocks 1 with error 117\nEXT4-fs (mmcblk0p1): This should not happen!! Data will be lost\n\nEXT4-fs (mmcblk0p1): Delayed block allocation failed for inode 2239 at logical offset 0 with max blocks 1 with error 117\nEXT4-fs (mmcblk0p1): This should not happen!! Data will be lost\n\nEXT4-fs (mmcblk0p1): error count since last fsck: 1\nEXT4-fs (mmcblk0p1): initial error at time 1765597433: ext4_mb_generate_buddy:760\nEXT4-fs (mmcblk0p1): last error at time 1765597433: ext4_mb_generate_buddy:760\n...\n\nAccording to the log analysis, blocks are always requested from the\ncorrupted block group. This may happen as follows:\next4_mb_find_by_goal\n  ext4_mb_load_buddy\n   ext4_mb_load_buddy_gfp\n     ext4_mb_init_cache\n      ext4_read_block_bitmap_nowait\n      ext4_wait_block_bitmap\n       ext4_validate_block_bitmap\n        if (!grp || EXT4_MB_GRP_BBITMAP_CORRUPT(grp))\n         return -EFSCORRUPTED; // There's no logs.\n if (err)\n  return err;  // Will return error\next4_lock_group(ac->ac_sb, group);\n  if (unlikely(EXT4_MB_GRP_BBITMAP_CORRUPT(e4b->bd_info))) // Unreachable\n   goto out;\n\nAfter commit 9008a58e5dce (\"ext4: make the bitmap read routines return\nreal error codes\") merged, Commit 163a203ddb36 (\"ext4: mark block group\nas corrupt on block bitmap error\") is no real solution for allocating\nblocks from corrupted block groups. This is because if\n'EXT4_MB_GRP_BBITMAP_CORRUPT(e4b->bd_info)' is true, then\n'ext4_mb_load_buddy()' may return an error. This means that the block\nallocation will fail.\nTherefore, check block group if corrupted when ext4_mb_load_buddy()\nreturns error.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43068",
+      "refs": [
+        "https://git.kernel.org/stable/c/0b84571c886719823d537f05f4f07cad6357c4b7",
+        "https://git.kernel.org/stable/c/1895f7904be71c48f1e6f338b28f24dabd6b8aeb",
+        "https://git.kernel.org/stable/c/1c0d7c4cde38a887c6d74e0c89ddb25226943c78"
+      ]
+    },
+    {
+      "id": "CVE-2026-43069",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nBluetooth: hci_ll: Fix firmware leak on error path\n\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nBluetooth: hci_ll: Fix firmware leak on error path\n\nSmatch reports:\n\ndrivers/bluetooth/hci_ll.c:587 download_firmware() warn:\n'fw' from request_firmware() not released on lines: 544.\n\nIn download_firmware(), if request_firmware() succeeds but the returned\nfirmware content is invalid (no data or zero size), the function returns\nwithout releasing the firmware, resulting in a resource leak.\n\nFix this by calling release_firmware() before returning when\nrequest_firmware() succeeded but the firmware content is invalid.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43069",
+      "refs": [
+        "https://git.kernel.org/stable/c/28904375d54b436a757641fb0331537778c0de5a",
+        "https://git.kernel.org/stable/c/31148a7be723aa9f2e8fbd62424825ab8d577973",
+        "https://git.kernel.org/stable/c/5213ef54528dd1ac79b846e30d8f72ce092794aa"
+      ]
+    },
+    {
+      "id": "CVE-2026-43072",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ndrm/vc4: platform_get_irq_byname() returns an int\n\n\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ndrm/vc4: platform_get_irq_byname() returns an int\n\nplatform_get_irq_byname() will return a negative value if an error\nhappens, so it should be checked and not just passed directly into\ndevm_request_threaded_irq() hoping all will be ok.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43072",
+      "refs": [
+        "https://git.kernel.org/stable/c/0185e0494a561edfc482507f9de89c2ad798b33d",
+        "https://git.kernel.org/stable/c/0c1b117f7ba46fb8f6ebc5e0bfe5b58568c301ba",
+        "https://git.kernel.org/stable/c/63c11b19cdc154fa848a6c3b535bfb1dc7b60378"
+      ]
+    },
+    {
+      "id": "CVE-2026-43073",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nx86-64: rename misleadingly named '__copy_user_noca\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nx86-64: rename misleadingly named '__copy_user_nocache()' function\n\nThis function was a masterclass in bad naming, for various historical\nreasons.\n\nIt claimed to be a non-cached user copy.  It is literally _neither_ of\nthose things.  It's a specialty memory copy routine that uses\nnon-temporal stores for the destination (but not the source), and that\ndoes exception handling for both source and destination accesses.\n\nAlso note that while it works for unaligned targets, any unaligned parts\n(whether at beginning or end) will not use non-temporal stores, since\nonly words and quadwords can be non-temporal on x86.\n\nThe exception handling means that it _can_ be used for user space\naccesses, but not on its own - it needs all the normal \"start user space\naccess\" logic around it.\n\nBut typically the user space access would be the source, not the\nnon-temporal destination.  That was the original intention of this,\nwhere the destination was some fragile persistent memory target that\nneeded non-temporal stores in order to catch machine check exceptions\nsynchronously and deal with them gracefully.\n\nThus that non-descriptive name: one use case was to copy from user space\ninto a non-cached kernel buffer.  However, the existing users are a mix\nof that intended use-case, and a couple of random drivers that just did\nthis as a performance tweak.\n\nSome of those random drivers then actively misused the user copying\nversion (with STAC/CLAC and all) to do kernel copies without ever even\ncaring about the exception handling, _just_ for the non-temporal\ndestination.\n\nRename it as a first small step to actually make it halfway sane, and\nchange the prototype to be more normal: it doesn't take a user pointer\nunless the caller has done the proper conversion, and the argument size\nis the full size_t (it still won't actually copy more than 4GB in one\ngo, but there's also no reason to silently truncate the size argument in\nthe caller).\n\nFinally, use this now sanely named function in the NTB code, which\nmis-used a user copy version (with STAC/CLAC and all) of this interface\ndespite it not actually being a user copy at all.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-05",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43073",
+      "refs": [
+        "https://git.kernel.org/stable/c/14b9194db4a28421a4dbe5d6e519efbaa7c5f3cd",
+        "https://git.kernel.org/stable/c/c6d4e0599e7e73abc04e2488dfeb7940c4039660",
+        "https://git.kernel.org/stable/c/d187a86de793f84766ea40b9ade7ac60aabbb4fe"
+      ]
+    },
+    {
+      "id": "CVE-2026-43077",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ncrypto: algif_aead - Fix minimum RX size check for \u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ncrypto: algif_aead - Fix minimum RX size check for decryption\n\nThe check for the minimum receive buffer size did not take the\ntag size into account during decryption.  Fix this by adding the\nrequired extra length.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43077",
+      "refs": [
+        "https://git.kernel.org/stable/c/1c76b5675119f694458293a2a81f40731c69bd32",
+        "https://git.kernel.org/stable/c/3afdc15d6173614d7d834517d9b65e7aa5a08548",
+        "https://git.kernel.org/stable/c/3d14bd48e3a77091cbce637a12c2ae31b4a1687c"
+      ]
+    },
+    {
+      "id": "CVE-2026-43079",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nperf/x86/intel/uncore: Skip discovery table for off\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nperf/x86/intel/uncore: Skip discovery table for offline dies\n\nThis warning can be triggered if NUMA is disabled and the system\nboots with fewer CPUs than the number of CPUs in die 0.\n\nWARNING: CPU: 9 PID: 7257 at uncore.c:1157 uncore_pci_pmu_register+0x136/0x160 [intel_uncore]\n\nCurrently, the discovery table continues to be parsed even if all CPUs\nin the associated die are offline.  This can lead to an array overflow\nat \"pmu->boxes[die] = box\" in uncore_pci_pmu_register(), which may\ntrigger the warning above or cause other issues.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43079",
+      "refs": [
+        "https://git.kernel.org/stable/c/6cfc187d85f18f976d0fe527d4c6f6171542cc19",
+        "https://git.kernel.org/stable/c/7a2cb02437d92ed14fe494d8994056d5bd2c72b4",
+        "https://git.kernel.org/stable/c/7b568e9eba2fad89a696f22f0413d44cf4a1f892"
+      ]
+    },
+    {
+      "id": "CVE-2026-43080",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nl2tp: Drop large packets with UDP encap\n\nsyzbot rep\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nl2tp: Drop large packets with UDP encap\n\nsyzbot reported a WARN on my patch series [1]. The actual issue is an\noverflow of 16-bit UDP length field, and it exists in the upstream code.\nMy series added a debug WARN with an overflow check that exposed the\nissue, that's why syzbot tripped on my patches, rather than on upstream\ncode.\n\nsyzbot's repro:\n\nr0 = socket$pppl2tp(0x18, 0x1, 0x1)\nr1 = socket$inet6_udp(0xa, 0x2, 0x0)\nconnect$inet6(r1, &(0x7f00000000c0)={0xa, 0x0, 0x0, @loopback, 0xfffffffc}, 0x1c)\nconnect$pppl2tp(r0, &(0x7f0000000240)=@pppol2tpin6={0x18, 0x1, {0x0, r1, 0x4, 0x0, 0x0, 0x0, {0xa, 0x4e22, 0xffff, @ipv4={'\\x00', '\\xff\\xff', @empty}}}}, 0x32)\nwritev(r0, &(0x7f0000000080)=[{&(0x7f0000000000)=\"ee\", 0x34000}], 0x1)\n\nIt basically sends an oversized (0x34000 bytes) PPPoL2TP packet with UDP\nencapsulation, and l2tp_xmit_core doesn't check for overflows when it\nassigns the UDP length field. The value gets trimmed to 16 bites.\n\nAdd an overflow check that drops oversized packets and avoids sending\npackets with trimmed UDP length to the wire.\n\nsyzbot's stack trace (with my patch applied):\n\nlen >= 65536u\nWARNING: ./include/linux/udp.h:38 at udp_set_len_short include/linux/udp.h:38 [inline], CPU#1: syz.0.17/5957\nWARNING: ./include/linux/udp.h:38 at l2tp_xmit_core net/l2tp/l2tp_core.c:1293 [inline], CPU#1: syz.0.17/5957\nWARNING: ./include/linux/udp.h:38 at l2tp_xmit_skb+0x1204/0x18d0 net/l2tp/l2tp_core.c:1327, CPU#1: syz.0.17/5957\nModules linked in:\nCPU: 1 UID: 0 PID: 5957 Comm: syz.0.17 Not tainted syzkaller #0 PREEMPT(full)\nHardware name: QEMU Standard PC (Q35 + ICH9, 2009), BIOS 1.16.2-debian-1.16.2-1 04/01/2014\nRIP: 0010:udp_set_len_short include/linux/udp.h:38 [inline]\nRIP: 0010:l2tp_xmit_core net/l2tp/l2tp_core.c:1293 [inline]\nRIP: 0010:l2tp_xmit_skb+0x1204/0x18d0 net/l2tp/l2tp_core.c:1327\nCode: 0f 0b 90 e9 21 f9 ff ff e8 e9 05 ec f6 90 0f 0b 90 e9 8d f9 ff ff e8 db 05 ec f6 90 0f 0b 90 e9 cc f9 ff ff e8 cd 05 ec f6 90 <0f> 0b 90 e9 de fa ff ff 44 89 f1 80 e1 07 80 c1 03 38 c1 0f 8c 4f\nRSP: 0018:ffffc90003d67878 EFLAGS: 00010293\nRAX: ffffffff8ad985e3 RBX: ffff8881a6400090 RCX: ffff8881697f0000\nRDX: 0000000000000000 RSI: 0000000000034010 RDI: 000000000000ffff\nRBP: dffffc0000000000 R08: 0000000000000003 R09: 0000000000000004\nR10: dffffc0000000000 R11: fffff520007acf00 R12: ffff8881baf20900\nR13: 0000000000034010 R14: ffff8881a640008e R15: ffff8881760f7000\nFS:  000055557e81f500(0000) GS:ffff8882a9467000(0000) knlGS:0000000000000000\nCS:  0010 DS: 0000 ES: 0000 CR0: 0000000080050033\nCR2: 0000200000033000 CR3: 00000001612f4000 CR4: 00000000000006f0\nCall Trace:\n <TASK>\n pppol2tp_sendmsg+0x40a/0x5f0 net/l2tp/l2tp_ppp.c:302\n sock_sendmsg_nosec net/socket.c:727 [inline]\n __sock_sendmsg net/socket.c:742 [inline]\n sock_write_iter+0x503/0x550 net/socket.c:1195\n do_iter_readv_writev+0x619/0x8c0 fs/read_write.c:-1\n vfs_writev+0x33c/0x990 fs/read_write.c:1059\n do_writev+0x154/0x2e0 fs/read_write.c:1105\n do_syscall_x64 arch/x86/entry/syscall_64.c:63 [inline]\n do_syscall_64+0x14d/0xf80 arch/x86/entry/syscall_64.c:94\n entry_SYSCALL_64_after_hwframe+0x77/0x7f\nRIP: 0033:0x7f636479c629\nCode: ff c3 66 2e 0f 1f 84 00 00 00 00 00 0f 1f 44 00 00 48 89 f8 48 89 f7 48 89 d6 48 89 ca 4d 89 c2 4d 89 c8 4c 8b 4c 24 08 0f 05 <48> 3d 01 f0 ff ff 73 01 c3 48 c7 c1 e8 ff ff ff f7 d8 64 89 01 48\nRSP: 002b:00007ffffd4241c8 EFLAGS: 00000246 ORIG_RAX: 0000000000000014\nRAX: ffffffffffffffda RBX: 00007f6364a15fa0 RCX: 00007f636479c629\nRDX: 0000000000000001 RSI: 0000200000000080 RDI: 0000000000000003\nRBP: 00007f6364832b39 R08: 0000000000000000 R09: 0000000000000000\nR10: 0000000000000000 R11: 0000000000000246 R12: 0000000000000000\nR13: 00007f6364a15fac R14: 00007f6364a15fa0 R15: 00007f6364a15fa0\n </TASK>\n\n[1]: https://lore.kernel.org/all/20260226201600.222044-1-alice.kernel@fastmail.im/",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43080",
+      "refs": [
+        "https://git.kernel.org/stable/c/77c1489398c85a844f90205f5e76fd6bc8bb4089",
+        "https://git.kernel.org/stable/c/86534c97abd6365a9a021fd767a2023e63c44469",
+        "https://git.kernel.org/stable/c/9ccce02d501335f59a02f26c878c5e095b16302f"
+      ]
+    },
+    {
+      "id": "CVE-2026-43081",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: ipa: fix GENERIC_CMD register field masks for \u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: ipa: fix GENERIC_CMD register field masks for IPA v5.0+\n\nFix the field masks to match the hardware layout documented in\ndownstream GSI (GSI_V3_0_EE_n_GSI_EE_GENERIC_CMD_*).\n\nNotably this fixes a WARN I was seeing when I tried to send \"stop\"\nto the MPSS remoteproc while IPA was up.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43081",
+      "refs": [
+        "https://git.kernel.org/stable/c/2aa50d2c1f631b405849da246043c6f683af7489",
+        "https://git.kernel.org/stable/c/9709b56d908acc120fe8b4ae250b3c9d749ea832",
+        "https://git.kernel.org/stable/c/a7d326dfb13b5a0763eccfd78836fe15199fc499"
+      ]
+    },
+    {
+      "id": "CVE-2026-43082",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: txgbe: leave space for null terminators on pro\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: txgbe: leave space for null terminators on property_entry\n\nLists of struct property_entry are supposed to be terminated with an\nempty property, this driver currently seems to be allocating exactly the\namount of entry used.\n\nChange the struct definition to leave an extra element for all\nproperty_entry.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43082",
+      "refs": [
+        "https://git.kernel.org/stable/c/00e1d650fa4b228ef1faea8e29effe4b4861e6e4",
+        "https://git.kernel.org/stable/c/16eb3c2f86de9a21aefe7a6386607d4cd3947a77",
+        "https://git.kernel.org/stable/c/5a37d228799b0ec2c277459c83c814a59d310bc3"
+      ]
+    },
+    {
+      "id": "CVE-2026-43085",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnetfilter: nfnetlink_log: initialize nfgenmsg in NL\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnetfilter: nfnetlink_log: initialize nfgenmsg in NLMSG_DONE terminator\n\nWhen batching multiple NFLOG messages (inst->qlen > 1), __nfulnl_send()\nappends an NLMSG_DONE terminator with sizeof(struct nfgenmsg) payload via\nnlmsg_put(), but never initializes the nfgenmsg bytes. The nlmsg_put()\nhelper only zeroes alignment padding after the payload, not the payload\nitself, so four bytes of stale kernel heap data are leaked to userspace\nin the NLMSG_DONE message body.\n\nUse nfnl_msg_put() to build the NLMSG_DONE terminator, which initializes\nthe nfgenmsg payload via nfnl_fill_hdr(), consistent with how\n__build_packet_message() already constructs NFULNL_MSG_PACKET headers.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43085",
+      "refs": [
+        "https://git.kernel.org/stable/c/15d209bccf9273b4a8b4e579ba0e92d065b6ec8c",
+        "https://git.kernel.org/stable/c/1f3083aec8836213da441270cdb1ab612dd82cf4",
+        "https://git.kernel.org/stable/c/368c22aea490f6f50df831b4f9e3623787686c5b"
+      ]
+    },
+    {
+      "id": "CVE-2026-43086",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nipvs: fix NULL deref in ip_vs_add_service error pat\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nipvs: fix NULL deref in ip_vs_add_service error path\n\nWhen ip_vs_bind_scheduler() succeeds in ip_vs_add_service(), the local\nvariable sched is set to NULL.  If ip_vs_start_estimator() subsequently\nfails, the out_err cleanup calls ip_vs_unbind_scheduler(svc, sched)\nwith sched == NULL.  ip_vs_unbind_scheduler() passes the cur_sched NULL\ncheck (because svc->scheduler was set by the successful bind) but then\ndereferences the NULL sched parameter at sched->done_service, causing a\nkernel panic at offset 0x30 from NULL.\n\n Oops: general protection fault, [..] [#1] PREEMPT SMP KASAN NOPTI\n KASAN: null-ptr-deref in range [0x0000000000000030-0x0000000000000037]\n RIP: 0010:ip_vs_unbind_scheduler (net/netfilter/ipvs/ip_vs_sched.c:69)\n Call Trace:\n  <TASK>\n  ip_vs_add_service.isra.0 (net/netfilter/ipvs/ip_vs_ctl.c:1500)\n  do_ip_vs_set_ctl (net/netfilter/ipvs/ip_vs_ctl.c:2809)\n  nf_setsockopt (net/netfilter/nf_sockopt.c:102)\n  [..]\n\nFix by simply not clearing the local sched variable after a successful\nbind.  ip_vs_unbind_scheduler() already detects whether a scheduler is\ninstalled via svc->scheduler, and keeping sched non-NULL ensures the\nerror path passes the correct pointer to both ip_vs_unbind_scheduler()\nand ip_vs_scheduler_put().\n\nWhile the bug is older, the problem popups in more recent kernels (6.2),\nwhen the new error path is taken after the ip_vs_start_estimator() call.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43086",
+      "refs": [
+        "https://git.kernel.org/stable/c/4039959315008888dd53c37674d33351817a5166",
+        "https://git.kernel.org/stable/c/730663352c9178f33fcf5929f4a37c1f1ca5a693",
+        "https://git.kernel.org/stable/c/9a91797e61d286805ae10a92cc48959c30800556"
+      ]
+    },
+    {
+      "id": "CVE-2026-43087",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\npinctrl: mcp23s08: Disable all pin interrupts durin\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\npinctrl: mcp23s08: Disable all pin interrupts during probe\n\nA chip being probed may have the interrupt-on-change feature enabled on\nsome of its pins, for example after a reboot. This can cause the chip to\ngenerate interrupts for pins that don't have a registered nested handler,\nwhich leads to a kernel crash such as below:\n\n[    7.928897] Unable to handle kernel read from unreadable memory at virtual address 00000000000000ac\n[    7.932314] Mem abort info:\n[    7.935081]   ESR = 0x0000000096000004\n[    7.938808]   EC = 0x25: DABT (current EL), IL = 32 bits\n[    7.944094]   SET = 0, FnV = 0\n[    7.947127]   EA = 0, S1PTW = 0\n[    7.950247]   FSC = 0x04: level 0 translation fault\n[    7.955101] Data abort info:\n[    7.957961]   ISV = 0, ISS = 0x00000004, ISS2 = 0x00000000\n[    7.963421]   CM = 0, WnR = 0, TnD = 0, TagAccess = 0\n[    7.968447]   GCS = 0, Overlay = 0, DirtyBit = 0, Xs = 0\n[    7.973734] user pgtable: 4k pages, 48-bit VAs, pgdp=00000000089b7000\n[    7.980148] [00000000000000ac] pgd=0000000000000000, p4d=0000000000000000\n[    7.986913] Internal error: Oops: 0000000096000004 [#1]  SMP\n[    7.992545] Modules linked in:\n[    8.073678] CPU: 0 UID: 0 PID: 81 Comm: irq/18-4-0025 Not tainted 7.0.0-rc6-gd2b5a1f931c8-dirty #199\n[    8.073689] Hardware name: Khadas VIM3 (DT)\n[    8.073692] pstate: 604000c5 (nZCv daIF +PAN -UAO -TCO -DIT -SSBS BTYPE=--)\n[    8.094639] pc : _raw_spin_lock_irq+0x40/0x80\n[    8.098970] lr : handle_nested_irq+0x2c/0x168\n[    8.098979] sp : ffff800082b2bd20\n[    8.106599] x29: ffff800082b2bd20 x28: ffff800080107920 x27: ffff800080104d88\n[    8.106611] x26: ffff000003298080 x25: 0000000000000001 x24: 000000000000ff00\n[    8.113707] x23: 0000000000000001 x22: 0000000000000000 x21: 000000000000000e\n[    8.120850] x20: 0000000000000000 x19: 00000000000000ac x18: 0000000000000000\n[    8.135046] x17: 0000000000000000 x16: 0000000000000000 x15: 0000000000000000\n[    8.135062] x14: ffff800081567ea8 x13: ffffffffffffffff x12: 0000000000000000\n[    8.135070] x11: 00000000000000c0 x10: 0000000000000b60 x9 : ffff800080109e0c\n[    8.135078] x8 : 1fffe0000069dbc1 x7 : 0000000000000001 x6 : ffff0000034ede00\n[    8.135086] x5 : 0000000000000000 x4 : ffff0000034ede08 x3 : 0000000000000001\n[    8.163460] x2 : 0000000000000000 x1 : 0000000000000001 x0 : 00000000000000ac\n[    8.170560] Call trace:\n[    8.180094]  _raw_spin_lock_irq+0x40/0x80 (P)\n[    8.184443]  mcp23s08_irq+0x248/0x358\n[    8.184462]  irq_thread_fn+0x34/0xb8\n[    8.184470]  irq_thread+0x1a4/0x310\n[    8.195093]  kthread+0x13c/0x150\n[    8.198309]  ret_from_fork+0x10/0x20\n[    8.201850] Code: d65f03c0 d2800002 52800023 f9800011 (885ffc01)\n[    8.207931] ---[ end trace 0000000000000000 ]---\n\nThis issue has always been present, but has been latent until commit\n\"f9f4fda15e72\" (\"pinctrl: mcp23s08: init reg_defaults from HW at probe and\nswitch cache type\"), which correctly removed reg_defaults from the regmap\nand as a side effect changed the behavior of the interrupt handler so that\nthe real value of the MCP_GPINTEN register is now being read from the chip\ninstead of using a bogus 0 default value; a non-zero value for this\nregister can trigger the invocation of a nested handler which may not exist\n(yet).\nFix this issue by disabling all pin interrupts during initialization.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43087",
+      "refs": [
+        "https://git.kernel.org/stable/c/db5b8cecbdf479ad13156af750377e5b43853fab",
+        "https://git.kernel.org/stable/c/f8c3258541a0680a4ebc08b05b2bc5fdad3288a9"
+      ]
+    },
+    {
+      "id": "CVE-2026-43088",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: af_key: zero aligned sockaddr tail in PF_KEY e\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: af_key: zero aligned sockaddr tail in PF_KEY exports\n\nPF_KEY export paths use `pfkey_sockaddr_size()` when reserving sockaddr\npayload space, so IPv6 addresses occupy 32 bytes on the wire. However,\n`pfkey_sockaddr_fill()` initializes only the first 28 bytes of\n`struct sockaddr_in6`, leaving the final 4 aligned bytes uninitialized.\n\nNot every PF_KEY message is affected. The state and policy dump builders\nalready zero the whole message buffer before filling the sockaddr\npayloads. Keep the fix to the export paths that still append aligned\nsockaddr payloads with plain `skb_put()`:\n\n  - `SADB_ACQUIRE`\n  - `SADB_X_NAT_T_NEW_MAPPING`\n  - `SADB_X_MIGRATE`\n\nFix those paths by clearing only the aligned sockaddr tail after\n`pfkey_sockaddr_fill()`.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43088",
+      "refs": [
+        "https://git.kernel.org/stable/c/2e74f974359b5382ecbe8536abbb5b837eb6c724",
+        "https://git.kernel.org/stable/c/426c355742f02cf743b347d9d7dbdc1bfbfa31ef"
+      ]
+    },
+    {
+      "id": "CVE-2026-43089",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm_user: fix info leak in build_mapping()\n\nstruct\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm_user: fix info leak in build_mapping()\n\nstruct xfrm_usersa_id has a one-byte padding hole after the proto\nfield, which ends up never getting set to zero before copying out to\nuserspace.  Fix that up by zeroing out the whole structure before\nsetting individual variables.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43089",
+      "refs": [
+        "https://git.kernel.org/stable/c/1beb76b2053b68c491b78370794b8ff63c8f8c02",
+        "https://git.kernel.org/stable/c/5a1a4b049ddde41466ccac0daeec326254b133f2",
+        "https://git.kernel.org/stable/c/700c9622b23c33b5933e6dcea816492c064e4e10"
+      ]
+    },
+    {
+      "id": "CVE-2026-43090",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm: fix refcount leak in xfrm_migrate_policy_find\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm: fix refcount leak in xfrm_migrate_policy_find\n\nsyzkaller reported a memory leak in xfrm_policy_alloc:\n\n  BUG: memory leak\n  unreferenced object 0xffff888114d79000 (size 1024):\n    comm \"syz.1.17\", pid 931\n    ...\n    xfrm_policy_alloc+0xb3/0x4b0 net/xfrm/xfrm_policy.c:432\n\nThe root cause is a double call to xfrm_pol_hold_rcu() in\nxfrm_migrate_policy_find(). The lookup function already returns\na policy with held reference, making the second call redundant.\n\nRemove the redundant xfrm_pol_hold_rcu() call to fix the refcount\nimbalance and prevent the memory leak.\n\nFound by Linux Verification Center (linuxtesting.org) with Syzkaller.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43090",
+      "refs": [
+        "https://git.kernel.org/stable/c/21e235a36cfb6d145cefb10728f12f5dc5412f54",
+        "https://git.kernel.org/stable/c/70c2a89a3bc207c3bfbf6f21bb439809e0a4a27a",
+        "https://git.kernel.org/stable/c/83317cce60a032c49480dcdabe146435bd689d03"
+      ]
+    },
+    {
+      "id": "CVE-2026-43092",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxsk: validate MTU against usable frame size on bind\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxsk: validate MTU against usable frame size on bind\n\nAF_XDP bind currently accepts zero-copy pool configurations without\nverifying that the device MTU fits into the usable frame space provided\nby the UMEM chunk.\n\nThis becomes a problem since we started to respect tailroom which is\nsubtracted from chunk_size (among with headroom). 2k chunk size might\nnot provide enough space for standard 1500 MTU, so let us catch such\nsettings at bind time. Furthermore, validate whether underlying HW will\nbe able to satisfy configured MTU wrt XSK's frame size multiplied by\nsupported Rx buffer chain length (that is exposed via\nnet_device::xdp_zc_max_segs).",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43092",
+      "refs": [
+        "https://git.kernel.org/stable/c/25e1e91a8da819924df0b16e3812d7b24c8ce133",
+        "https://git.kernel.org/stable/c/36ee60b569ba0dfb6f961333b90d19ab5b323fa9",
+        "https://git.kernel.org/stable/c/a55793e5a97d4e39bdb380873a9780fe0010bff6"
+      ]
+    },
+    {
+      "id": "CVE-2026-43094",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nixgbevf: add missing negotiate_features op to Hyper\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nixgbevf: add missing negotiate_features op to Hyper-V ops table\n\nCommit a7075f501bd3 (\"ixgbevf: fix mailbox API compatibility by\nnegotiating supported features\") added the .negotiate_features callback\nto ixgbe_mac_operations and populated it in ixgbevf_mac_ops, but forgot\nto add it to ixgbevf_hv_mac_ops. This leaves the function pointer NULL\non Hyper-V VMs.\n\nDuring probe, ixgbevf_negotiate_api() calls ixgbevf_set_features(),\nwhich unconditionally dereferences hw->mac.ops.negotiate_features().\nOn Hyper-V this results in a NULL pointer dereference:\n\n  BUG: kernel NULL pointer dereference, address: 0000000000000000\n  [...]\n  Hardware name: Microsoft Corporation Virtual Machine/Virtual Machine [...]\n  Workqueue: events work_for_cpu_fn\n  RIP: 0010:0x0\n  [...]\n  Call Trace:\n   ixgbevf_negotiate_api+0x66/0x160 [ixgbevf]\n   ixgbevf_sw_init+0xe4/0x1f0 [ixgbevf]\n   ixgbevf_probe+0x20f/0x4a0 [ixgbevf]\n   local_pci_probe+0x50/0xa0\n   work_for_cpu_fn+0x1a/0x30\n   [...]\n\nAdd ixgbevf_hv_negotiate_features_vf() that returns -EOPNOTSUPP and\nwire it into ixgbevf_hv_mac_ops. The caller already handles -EOPNOTSUPP\ngracefully.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43094",
+      "refs": [
+        "https://git.kernel.org/stable/c/1455ff8809843e6e83f1f5b5c0bcc2224c99a3cb",
+        "https://git.kernel.org/stable/c/2270ebab53128fb73c4a70a292be09094074737f",
+        "https://git.kernel.org/stable/c/4821d563cd7f251ae728be1a6d04af82a294a5b9"
+      ]
+    },
+    {
+      "id": "CVE-2026-43095",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nASoC: SDCA: Fix errors in IRQ cleanup\n\nIRQs are ena\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nASoC: SDCA: Fix errors in IRQ cleanup\n\nIRQs are enabled through sdca_irq_populate() from component probe\nusing devm_request_threaded_irq(), this however means the IRQs can\npersist if the sound card is torn down. Some of the IRQ handlers\nstore references to the card and the kcontrols which can then\nfail. Some detail of the crash was explained in [1].\n\nGenerally it is not advised to use devm outside of bus probe, so\nthe code is updated to not use devm. The IRQ requests are not moved\nto bus probe time as it makes passing the snd_soc_component into\nthe IRQs very awkward and would the require a second step once the\ncomponent is available, so it is simpler to just register the IRQs\nat this point, even though that necessitates some manual cleanup.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43095",
+      "refs": [
+        "https://git.kernel.org/stable/c/4e53116437e919c4b9a9d95fb73ae14fe0cfc8f9",
+        "https://git.kernel.org/stable/c/b022da127bd9d2217e8f285e643caf5aff6f7f14"
+      ]
+    },
+    {
+      "id": "CVE-2026-43096",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nmshv: Fix infinite fault loop on permission-denied \u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nmshv: Fix infinite fault loop on permission-denied GPA intercepts\n\nPrevent infinite fault loops when guests access memory regions without\nproper permissions. Currently, mshv_handle_gpa_intercept() attempts to\nremap pages for all faults on movable memory regions, regardless of\nwhether the access type is permitted. When a guest writes to a read-only\nregion, the remap succeeds but the region remains read-only, causing\nimmediate re-fault and spinning the vCPU indefinitely.\n\nValidate intercept access type against region permissions before\nattempting remaps. Reject writes to non-writable regions and executes to\nnon-executable regions early, returning false to let the VMM handle the\nintercept appropriately.\n\nThis also closes a potential DoS vector where malicious guests could\nintentionally trigger these fault loops to consume host resources.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43096",
+      "refs": [
+        "https://git.kernel.org/stable/c/02226839079ccc558820a3b25c4c46812927b4ba",
+        "https://git.kernel.org/stable/c/16cbec24897624051b324aa3a85859c38ca65fde"
+      ]
+    },
+    {
+      "id": "CVE-2026-43097",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nPCI: hv: Fix double ida_free in hv_pci_probe error \u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nPCI: hv: Fix double ida_free in hv_pci_probe error path\n\nIf hv_pci_probe() fails after storing the domain number in\nhbus->bridge->domain_nr, there is a call to free this domain_nr via\npci_bus_release_emul_domain_nr(), however, during cleanup, the bridge\nrelease callback pci_release_host_bridge_dev() also frees the domain_nr\ncausing ida_free to be called on same ID twice and triggering following\nwarning:\n\n  ida_free called for id=28971 which is not allocated.\n  WARNING: lib/idr.c:594 at ida_free+0xdf/0x160, CPU#0: kworker/0:2/198\n  Call Trace:\n   pci_bus_release_emul_domain_nr+0x17/0x20\n   pci_release_host_bridge_dev+0x4b/0x60\n   device_release+0x3b/0xa0\n   kobject_put+0x8e/0x220\n   devm_pci_alloc_host_bridge_release+0xe/0x20\n   devres_release_all+0x9a/0xd0\n   device_unbind_cleanup+0x12/0xa0\n   really_probe+0x1c5/0x3f0\n   vmbus_add_channel_work+0x135/0x1a0\n\nFix this by letting pci core handle the free domain_nr and remove\nthe explicit free called in pci-hyperv driver.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43097",
+      "refs": [
+        "https://git.kernel.org/stable/c/21bc8e0ba5c2a081b0a2808c976d4c9dbddf1e48",
+        "https://git.kernel.org/stable/c/b6422dff0e518245019233432b6bccfc30b73e2f"
+      ]
+    },
+    {
+      "id": "CVE-2026-43098",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnfc: s3fwrn5: allocate rx skb before consuming byte\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnfc: s3fwrn5: allocate rx skb before consuming bytes\n\ns3fwrn82_uart_read() reports the number of accepted bytes to the serdev\ncore. The current code consumes bytes into recv_skb and may already\ndeliver a complete frame before allocating a fresh receive buffer.\n\nIf that alloc_skb() fails, the callback returns 0 even though it has\nalready consumed bytes, and it leaves recv_skb as NULL for the next\nreceive callback. That breaks the receive_buf() accounting contract and\ncan also lead to a NULL dereference on the next skb_put_u8().\n\nAllocate the receive skb lazily before consuming the next byte instead.\nIf allocation fails, return the number of bytes already accepted.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43098",
+      "refs": [
+        "https://git.kernel.org/stable/c/09822d3d6f68a0cdc4626e0c507324a4927f55a9",
+        "https://git.kernel.org/stable/c/5c14a19d5b1645cce1cb1252833d70b23635b632",
+        "https://git.kernel.org/stable/c/6d931680a9851481c3243689488eafed08eeff71"
+      ]
+    },
+    {
+      "id": "CVE-2026-43100",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nbridge: guard local VLAN-0 FDB helpers against NULL\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nbridge: guard local VLAN-0 FDB helpers against NULL vlan group\n\nWhen CONFIG_BRIDGE_VLAN_FILTERING is not set, br_vlan_group() and\nnbp_vlan_group() return NULL (br_private.h stub definitions). The\nBR_BOOLOPT_FDB_LOCAL_VLAN_0 toggle code is compiled unconditionally and\nreaches br_fdb_delete_locals_per_vlan_port() and\nbr_fdb_insert_locals_per_vlan_port(), where the NULL vlan group pointer\nis dereferenced via list_for_each_entry(v, &vg->vlan_list, vlist).\n\nThe observed crash is in the delete path, triggered when creating a\nbridge with IFLA_BR_MULTI_BOOLOPT containing BR_BOOLOPT_FDB_LOCAL_VLAN_0\nvia RTM_NEWLINK. The insert helper has the same bug pattern.\n\n  Oops: general protection fault, probably for non-canonical address 0xdffffc0000000056: 0000 [#1] KASAN NOPTI\n  KASAN: null-ptr-deref in range [0x00000000000002b0-0x00000000000002b7]\n  RIP: 0010:br_fdb_delete_locals_per_vlan+0x2b9/0x310\n  Call Trace:\n   br_fdb_toggle_local_vlan_0+0x452/0x4c0\n   br_toggle_fdb_local_vlan_0+0x31/0x80 net/bridge/br.c:276\n   br_boolopt_toggle net/bridge/br.c:313\n   br_boolopt_multi_toggle net/bridge/br.c:364\n   br_changelink net/bridge/br_netlink.c:1542\n   br_dev_newlink net/bridge/br_netlink.c:1575\n\nAdd NULL checks for the vlan group pointer in both helpers, returning\nearly when there are no VLANs to iterate. This matches the existing\npattern used by other bridge FDB functions such as br_fdb_add() and\nbr_fdb_delete().",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43100",
+      "refs": [
+        "https://git.kernel.org/stable/c/1979645e1842cb7017525a61a0e0e0beb924d02a",
+        "https://git.kernel.org/stable/c/ddf0ec2d600e7dad62b89692749534d7900a732a",
+        "https://git.kernel.org/stable/c/fb612d436ff0317659e45a91c25fd7d9516f5b1b"
+      ]
+    },
+    {
+      "id": "CVE-2026-43102",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: airoha: Fix memory leak in airoha_qdma_rx_proc\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: airoha: Fix memory leak in airoha_qdma_rx_process()\n\nIf an error occurs on the subsequents buffers belonging to the\nnon-linear part of the skb (e.g. due to an error in the payload length\nreported by the NIC or if we consumed all the available fragments for\nthe skb), the page_pool fragment will not be linked to the skb so it will\nnot return to the pool in the airoha_qdma_rx_process() error path. Fix the\nmemory leak partially reverting commit 'd6d2b0e1538d (\"net: airoha: Fix\npage recycling in airoha_qdma_rx_process()\")' and always running\npage_pool_put_full_page routine in the airoha_qdma_rx_process() error\npath.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43102",
+      "refs": [
+        "https://git.kernel.org/stable/c/285fa6b1e03cff78ead0383e1b259c44b95faf90",
+        "https://git.kernel.org/stable/c/4429b761874fb9c7767d12d98913a467ef2654f1",
+        "https://git.kernel.org/stable/c/7ee0063fbab8aea8f4e4e3165f541bf898b77b80"
+      ]
+    },
+    {
+      "id": "CVE-2026-43103",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: lapbether: handle NETDEV_PRE_TYPE_CHANGE\n\nlapb\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nnet: lapbether: handle NETDEV_PRE_TYPE_CHANGE\n\nlapbeth_data_transmit() expects the underlying device type\nto be ARPHRD_ETHER.\n\nReturning NOTIFY_BAD from lapbeth_device_event() makes sure\nbonding driver can not break this expectation.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43103",
+      "refs": [
+        "https://git.kernel.org/stable/c/328bb2cff5c2ed973f595ded769e15f4b7a117be",
+        "https://git.kernel.org/stable/c/363a38044b8cd5b496d241651a1fb666e7c5fe3e",
+        "https://git.kernel.org/stable/c/63851f60781aa89258c8f0952cd13940aab0888e"
+      ]
+    },
+    {
+      "id": "CVE-2026-43104",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ndrm/vc4: Fix a memory leak in hang state error path\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ndrm/vc4: Fix a memory leak in hang state error path\n\nWhen vc4_save_hang_state() encounters an early return condition, it\nreturns without freeing the previously allocated `kernel_state`,\nleaking memory.\n\nAdd the missing kfree() calls by consolidating the early return paths\ninto a single place.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43104",
+      "refs": [
+        "https://git.kernel.org/stable/c/3eb7dd55021d0f4308fbea0bea21d2118984d8e7",
+        "https://git.kernel.org/stable/c/9525d169e5fd481538cf8c663cc5839e54f2e481",
+        "https://git.kernel.org/stable/c/d8fdd6adc07b78ad3e9ee0004876d90cb59ca941"
+      ]
+    },
+    {
+      "id": "CVE-2026-43105",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\ndrm/vc4: Fix memory leak of BO array in hang state\n\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\ndrm/vc4: Fix memory leak of BO array in hang state\n\nThe hang state's BO array is allocated separately with kzalloc() in\nvc4_save_hang_state() but never freed in vc4_free_hang_state(). Add the\nmissing kfree() for the BO array before freeing the hang state struct.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43105",
+      "refs": [
+        "https://git.kernel.org/stable/c/0d3c014a84396a147705f523a8fd6fc873e76502",
+        "https://git.kernel.org/stable/c/421cea4f71f7cf65abaae878562ee4aa2b684628",
+        "https://git.kernel.org/stable/c/a812008fe3a0aebb778d277b35717f64e23d0302"
+      ]
+    },
+    {
+      "id": "CVE-2026-43107",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm: account XFRMA_IF_ID in aevent size calculatio\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nxfrm: account XFRMA_IF_ID in aevent size calculation\n\nxfrm_get_ae() allocates the reply skb with xfrm_aevent_msgsize(), then\nbuild_aevent() appends attributes including XFRMA_IF_ID when x->if_id is\nset.\n\nxfrm_aevent_msgsize() does not include space for XFRMA_IF_ID. For states\nwith if_id, build_aevent() can fail with -EMSGSIZE and hit BUG_ON(err < 0)\nin xfrm_get_ae(), turning a malformed netlink interaction into a kernel\npanic.\n\nAccount XFRMA_IF_ID in the size calculation unconditionally and replace\nthe BUG_ON with normal error unwinding.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43107",
+      "refs": [
+        "https://git.kernel.org/stable/c/2c41283d94af943a05f7f2cc1a01f0c872f3cf43",
+        "https://git.kernel.org/stable/c/58e5735d1a5373652f405a0c16e54ac04aaab0ad",
+        "https://git.kernel.org/stable/c/7081d46d32312f1a31f0e0e99c6835a394037599"
+      ]
+    },
+    {
+      "id": "CVE-2026-43108",
+      "title": "In the Linux kernel, the following vulnerability has been resolved:\n\nsoc: qcom: pd-mapper: Fix element length in servreg\u2026",
+      "description": "In the Linux kernel, the following vulnerability has been resolved:\n\nsoc: qcom: pd-mapper: Fix element length in servreg_loc_pfr_req_ei\n\nIt looks element length declared in servreg_loc_pfr_req_ei for reason\nnot matching servreg_loc_pfr_req's reason field due which we could\nobserve decoding error on PD crash.\n\n  qmi_decode_string_elem: String len 81 >= Max Len 65\n\nFix this by matching with servreg_loc_pfr_req's reason field.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-06",
+      "source": "NVD",
+      "categories": [
+        "linux"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-43108",
+      "refs": [
+        "https://git.kernel.org/stable/c/641f6fda143b879da1515f821ee475073678cf2a",
+        "https://git.kernel.org/stable/c/7d75145672cf2ec7c5417e3243af72c48314f7bb",
+        "https://git.kernel.org/stable/c/c93ca7c5a72e23a83a0b96f7f5c41a7a72f1dc47"
+      ]
+    },
+    {
+      "id": "CVE-2026-42183",
+      "title": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From ve\u2026",
+      "description": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From version 4.0.0 to before version 4.0.5, a nil pointer dereference in server/auth/gatekeeper.go rbacAuthorization() causes a panic (denial of service) for SSO users whose claims match a namespace-level RBAC rule but not an SSO-namespace rule, when SSO_DELEGATE_RBAC_TO_NAMESPACE=true. This issue has been patched in version 4.0.5.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-09",
+      "source": "NVD",
+      "categories": [
+        "kubernetes"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-42183",
+      "refs": [
+        "https://github.com/argoproj/argo-workflows/commit/c4cc17d0c034fa9a9cc01ef1af6c8016c93071d4",
+        "https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5",
+        "https://github.com/argoproj/argo-workflows/security/advisories/GHSA-p4gq-3vxj-f4jq"
+      ]
+    },
+    {
+      "id": "CVE-2026-42294",
+      "title": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior t\u2026",
+      "description": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. Prior to versions 3.7.14 and 4.0.5, the Webhook Interceptor loads the entire request body into memory before authenticating the request or verifying its signature. This occurs on the /api/v1/events/ endpoint, which is publicly accessible (albeit intended for webhooks). An attacker can send a request with an extremely large body (e.g., multiple gigabytes), causing the Argo Server to allocate excessive memory, potentially leading to an Out-Of-Memory (OOM) crash and denial of service. This issue has been patched in versions 3.7.14 and 4.0.5.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-09",
+      "source": "NVD",
+      "categories": [
+        "kubernetes"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-42294",
+      "refs": [
+        "https://github.com/argoproj/argo-workflows/commit/7abb4de6c3599e2d5d960ba4d5de4cf1df109965",
+        "https://github.com/argoproj/argo-workflows/releases/tag/v3.7.14",
+        "https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5"
+      ]
+    },
+    {
+      "id": "CVE-2026-42295",
+      "title": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From ve\u2026",
+      "description": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From version 4.0.0 to before version 4.0.5, the workflow executor logs all artifact repository credentials (S3 access keys, secret keys, GCS service account keys, Azure account keys, Git passwords, etc.) in plaintext on artifact operation. Any user with read access to workflow pod logs can extract these credentials. This issue has been patched in version 4.0.5.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-09",
+      "source": "NVD",
+      "categories": [
+        "kubernetes"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-42295",
+      "refs": [
+        "https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5",
+        "https://github.com/argoproj/argo-workflows/security/advisories/GHSA-7vf8-2cr6-54mf"
+      ]
+    },
+    {
+      "id": "CVE-2026-42297",
+      "title": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From ve\u2026",
+      "description": "Argo Workflows is an open source container-native workflow engine for orchestrating parallel jobs on Kubernetes. From version 4.0.0 to before version 4.0.5, the Sync Service's ConfigMap-backed provider (server/sync/sync_cm.go) performs zero authorization checks on all CRUD operations (create, read, update, delete). Any authenticated user \u2014 including those using fake Bearer tokens \u2014 can create, read, update, and delete Kubernetes ConfigMaps containing synchronization limits. This issue has been patched in version 4.0.5.",
+      "severity": "UNKNOWN",
+      "score": null,
+      "published": "2026-05-09",
+      "source": "NVD",
+      "categories": [
+        "kubernetes"
+      ],
+      "url": "https://nvd.nist.gov/vuln/detail/CVE-2026-42297",
+      "refs": [
+        "https://github.com/argoproj/argo-workflows/commit/09fff05e0830c14a5e36cc40597ad84881db1ab6",
+        "https://github.com/argoproj/argo-workflows/releases/tag/v4.0.5",
+        "https://github.com/argoproj/argo-workflows/security/advisories/GHSA-xchc-cqwg-g76q"
+      ]
+    }
+  ]
+}
